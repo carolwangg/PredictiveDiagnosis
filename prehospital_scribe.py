@@ -1,21 +1,27 @@
-from datetime import datetime
+# prehospital_scribe.py
 from typing import List, Optional
 from pydantic import BaseModel, Field
 import uuid
 import json
+import os
+from datetime import datetime
+import ollama
+
+# Import the Push-to-Talk STT module functions
+from modules.stt import listen_for_speech, transcribe_audio
 
 
 # ==========================================
-# 1. STRICT DATA MODELS (Pydantic Schemas)
+# 1. STRICT CHRONOLOGICAL DATA MODELS
 # ==========================================
 
 class VitalSign(BaseModel):
-    timestamp: str = Field(..., description="Time vitals were recorded, e.g., '14:40'")
-    bp: Optional[str] = Field(None, description="Blood Pressure, e.g., '140/90'")
+    timestamp: str = Field(..., description="Time vitals were recorded")
+    bp: Optional[str] = Field(None, description="Blood Pressure")
     hr: Optional[int] = Field(None, description="Heart Rate in BPM")
     spo2: Optional[int] = Field(None, description="Oxygen Saturation percentage")
     gcs: Optional[int] = Field(None, description="Glasgow Coma Scale total (3-15)")
-    blood_glucose: Optional[str] = Field(None, description="Blood glucose level if checked")
+    blood_glucose: Optional[str] = Field(None, description="Blood glucose level")
 
 
 class MedicationAdministered(BaseModel):
@@ -25,114 +31,217 @@ class MedicationAdministered(BaseModel):
     timestamp: str
 
 
+class ClinicalEvent(BaseModel):
+    event_sequence: int
+    timestamp: str
+    raw_transcript: str
+    noted_complaint: Optional[str] = None
+    new_vitals: List[VitalSign] = Field(default_factory=list)
+    new_medications: List[MedicationAdministered] = Field(default_factory=list)
+
+
 class PatientRecord(BaseModel):
     encounter_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    chief_complaint: Optional[str] = None
-    onset: Optional[str] = None
+    patient_age: Optional[int] = None
+    patient_gender: Optional[str] = None
     allergies: List[str] = Field(default_factory=list)
-    medications_administered: List[MedicationAdministered] = Field(default_factory=list)
-    vitals_stream: List[VitalSign] = Field(default_factory=list)
-    protocol_triggers: List[dict] = Field(default_factory=list)
+
+    # Chronological timeline of events during the call
+    timeline: List[ClinicalEvent] = Field(default_factory=list)
+
+    # Active protocols and warnings based on the latest state
+    active_protocols: List[dict] = Field(default_factory=list)
     missing_fields: List[str] = Field(default_factory=list)
     paramedic_signed_off: bool = False
 
 
 # ==========================================
-# 2. EXTRACTION ENGINE SIMULATOR
+# 2. MASTER JSON DATABASE STORAGE HELPER
 # ==========================================
-# In production, this replaces raw text with structured output
-# using an LLM constrained by the PatientRecord JSON schema.
 
-def extract_structured_record(raw_transcript: str) -> PatientRecord:
-    """
-    Simulates parsing unstructured paramedic voice notes into
-    a strict clinical schema.
-    """
-    print(f"[*] Processing raw audio transcript: \"{raw_transcript}\"\n")
+MASTER_DB_FILE = "ems_encounters.json"
 
-    # Mocked extraction output based on the transcript sample
-    record = PatientRecord(
-        chief_complaint="Acute chest pain",
-        onset="20 minutes ago",
-        allergies=[],  # Intentional missing data for rule engine test
-        medications_administered=[
-            MedicationAdministered(
-                drug="Aspirin",
-                dose="160 mg",
-                route="PO",
-                timestamp="14:42"
-            )
-        ],
-        vitals_stream=[
-            VitalSign(
-                timestamp="14:40",
-                bp="140/90",
-                hr=110,
-                spo2=94,
-                gcs=15,
-                blood_glucose=None  # Intentional missing vital
-            )
-        ]
+
+def save_record_to_master_json(record: PatientRecord) -> str:
+    """Saves or updates the current patient record inside the central master JSON database."""
+    database = {}
+
+    if os.path.exists(MASTER_DB_FILE):
+        try:
+            with open(MASTER_DB_FILE, "r", encoding="utf-8") as f:
+                database = json.load(f)
+        except json.JSONDecodeError:
+            database = {}
+
+    database[record.encounter_id] = record.model_dump()
+
+    with open(MASTER_DB_FILE, "w", encoding="utf-8") as f:
+        json.dump(database, f, indent=4)
+
+    print(f"[💾] Master database updated -> {MASTER_DB_FILE} (Encounter: {record.encounter_id[:8]})")
+    return MASTER_DB_FILE
+
+
+# ==========================================
+# 3. LOCAL LLM STRUCTURED EXTRACTION ENGINE
+# ==========================================
+
+def extract_data_with_llm(raw_transcript: str) -> dict:
+    """Uses a local LLM (Ollama) to extract structured clinical fields from raw speech text."""
+    print("[🤖] Running local LLM extraction...")
+
+    prompt = f"""
+    You are a medical data extraction assistant for prehospital EMS documentation. 
+    Analyze the following paramedic voice transcript and extract structured clinical fields into strict JSON format.
+
+    Transcript: "{raw_transcript}"
+
+    Extract and return ONLY a valid JSON object with the following keys:
+    - "patient_age": integer or null
+    - "patient_gender": string (e.g. "Male", "Female") or null
+    - "allergies": list of strings (or empty list if none)
+    - "noted_complaint": string summary of chief complaint or status update
+    - "new_vitals": list of objects containing any recorded vitals, each with:
+      - "timestamp": string (e.g. "14:40") or null
+      - "bp": string or null
+      - "hr": integer or null
+      - "spo2": integer or null
+      - "gcs": integer or null
+      - "blood_glucose": string or null
+    - "new_medications": list of objects containing any administered medications, each with:
+      - "drug": string
+      - "dose": string
+      - "route": string
+      - "timestamp": string or null
+    ""
+
+    try:
+        response = ollama.chat(
+            model='llama3',  # Make sure Ollama is running and llama3 is installed locally
+            messages=[{'role': 'user', 'content': prompt}],
+            format='json'  # Forces Ollama to output valid JSON
+        )  # <-- Fixed: closed with parenthesis instead of brace
+
+        return json.loads(response['message']['content'])
+    except Exception as e:
+        print(f"[!] LLM Extraction Error: {e}")
+        return {}
+
+# ==========================================
+# 4. EVENT PROCESSOR & RULE ENGINE
+# ==========================================
+
+def process_new_audio_event(record: PatientRecord, raw_transcript: str) -> PatientRecord:
+    """Processes raw audio transcript via LLM, appends to timeline, and updates protocols."""
+    current_time = datetime.now().strftime("%H:%M:%S")
+    event_num = len(record.timeline) + 1
+
+    # 1. Extract structured data using local LLM
+    extracted_data = extract_data_with_llm(raw_transcript)
+
+    # Update global patient demographics if detected and not already set
+    if not record.patient_age and extracted_data.get("patient_age"):
+        record.patient_age = extracted_data.get("patient_age")
+    if not record.patient_gender and extracted_data.get("patient_gender"):
+        record.patient_gender = extracted_data.get("patient_gender")
+
+    # Merge allergies if found
+    for allergy in extracted_data.get("allergies", []):
+        if allergy not in record.allergies:
+            record.allergies.append(allergy)
+
+    # Build new vitals & medication sub-objects
+    vitals_list = [VitalSign(**v) for v in extracted_data.get("new_vitals", [])]
+    meds_list = [MedicationAdministered(**m) for m in extracted_data.get("new_medications", [])]
+
+    # Create chronological clinical event
+    new_event = ClinicalEvent(
+        event_sequence=event_num,
+        timestamp=current_time,
+        raw_transcript=raw_transcript,
+        noted_complaint=extracted_data.get("noted_complaint", "Status update"),
+        new_vitals=vitals_list,
+        new_medications=meds_list
     )
-    return record
 
+    record.timeline.append(new_event)
 
-# ==========================================
-# 3. DETERMINISTIC RULE & PROTOCOL ENGINE
-# ==========================================
-
-def run_protocol_and_validation_engine(record: PatientRecord) -> PatientRecord:
-    """
-    Applies deterministic clinical logic (checklists, protocol triggers,
-    and missing data flags) instead of probabilistic AI guessing.
-    """
-    missing = []
+    # 2. Protocol & Safety Rule Engine
     triggers = []
+    for event in record.timeline:
+        c = (event.noted_complaint or "").lower()
+        # Also check transcripts across timeline for safety triggers
+        t_text = event.raw_transcript.lower()
 
-    # Check for missing critical safety fields
+        if "stops breathing" in c or "arrest" in c or "unresponsive" in t_text or "stopped breathing" in t_text:
+            triggers.append({
+                "protocol": "CARDIAC / RESPIRATORY ARREST PROTOCOL",
+                "status": "URGENT ACTIVE",
+                "required_actions": ["Begin CPR / BVM ventilation", "Prepare defibrillator / AED",
+                                     "Trauma bay red activation"]
+            })
+        elif "chest pain" in c or "chest pain" in t_text:
+            triggers.append({
+                "protocol": "ACS / STEMI Protocol",
+                "status": "Active",
+                "required_actions": ["12-Lead ECG", "Aspirin administration verified"]
+            })
+
+    # Deduplicate triggers safely
+    unique_triggers = []
+    for trigger in triggers:
+        if trigger not in unique_triggers:
+            unique_triggers.append(trigger)
+    record.active_protocols = unique_triggers
+
+    # Check missing fields
+    missing = []
     if not record.allergies:
-        missing.append("Allergies not recorded (Required before handoff)")
-
-    if not record.vitals_stream or record.vitals_stream[-1].blood_glucose is None:
-        missing.append("Blood glucose missing for chest pain protocol")
-
-    # Protocol-based deterministic rules
-    complaint = (record.chief_complaint or "").lower()
-    if "chest pain" in complaint or "cardiac" in complaint:
-        triggers.append({
-            "protocol": "STEMI / Acute Coronary Syndrome",
-            "status": "Active",
-            "required_actions": ["12-Lead ECG transmission", "Aspirin confirmed", "Notify ED receiving team"]
-        })
-
+        missing.append("Allergies not recorded (Required before ED handoff)")
     record.missing_fields = missing
-    record.protocol_triggers = triggers
+
+    # 3. Save to Master JSON database
+    save_record_to_master_json(record)
+
     return record
 
 
 # ==========================================
-# 4. EXECUTION DEMO
+# 5. MAIN EXECUTION LOOP
 # ==========================================
 
 if __name__ == "__main__":
-    # Simulated chaotic voice transcript from a paramedic inside a moving ambulance
-    raw_audio_transcript = (
-        "Patient is a 65-year-old male complaining of acute chest pain starting "
-        "about 20 minutes ago. Vitals at 14:40: BP 140 over 90, heart rate 110, "
-        "SpO2 94 percent, GCS 15. Administered 160 milligrams of Aspirin orally at 14:42."
-    )
+    record = PatientRecord()
+    print(f"=== EMS ENCOUNTER STARTED (ID: {record.encounter_id}) ===")
+    save_record_to_master_json(record)
 
-    # Step 1: Extract into structured schema
-    structured_record = extract_structured_record(raw_audio_transcript)
+    while not record.paramedic_signed_off:
+        print(f"\n--- Transport Phase (Timeline Events Logged: {len(record.timeline)}) ---")
+        print("Options: [1] Record voice update  [2] View Current ED Summary  [3] Sign & Transmit to ED")
+        choice = input("Select an option (1, 2, or 3): ").strip()
 
-    # Step 2: Run safety checklists and protocol engines
-    validated_record = run_protocol_and_validation_engine(structured_record)
+        if choice == "1":
+            audio_array = listen_for_speech()
+            if audio_array.size > 0:
+                raw_transcript = transcribe_audio(audio_array)
+                print(f"\n[📝] Transcribed Text:\n\"{raw_transcript}\"\n")
 
-    # Step 3: Output results for paramedic review/sign-off
-    print("=== VALIDATED PRE-ARRIVAL SUMMARY ===")
-    print(json.dumps(validated_record.model_dump(), indent=4))
+                if raw_transcript.strip():
+                    record = process_new_audio_event(record, raw_transcript)
+                    print("[✓] Event successfully processed by LLM and saved to master database.")
+            else:
+                print("[!] No audio captured.")
 
-    # Step 4: Simulate Paramedic Sign-off
-    print("\n[Action] Paramedic reviews alerts, confirms data, and taps 'Sign & Transmit to ED'.")
-    validated_record.paramedic_signed_off = True
-    print(f"Record Signed Status: {validated_record.paramedic_signed_off}")
+        elif choice == "2":
+            print("\n=== CURRENT LIVE PRE-ARRIVAL SUMMARY ===")
+            print(json.dumps(record.model_dump(), indent=4))
+
+        elif choice == "3":
+            print("\n[Action] Paramedic finalizes review and signs off.")
+            record.paramedic_signed_off = True
+            save_record_to_master_json(record)
+            print("=== FINAL SIGNED RECORD TRANSMITTED TO ED ===")
+            print(json.dumps(record.model_dump(), indent=4))
+            break
+        else:
+            print("[!] Invalid option. Select 1, 2, or 3.")
