@@ -113,7 +113,7 @@ def extract_data_with_llm(raw_transcript: str) -> dict:
       - "dose": string
       - "route": string
       - "timestamp": string or null
-    ""
+    """
 
     try:
         response = ollama.chat(
