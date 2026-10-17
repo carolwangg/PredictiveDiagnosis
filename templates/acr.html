@@ -1,0 +1,504 @@
+{#- ================= macros ================= -#}
+{% macro cell(label, name, span=3) -%}
+<label class="cell s{{ span }}"><span class="lbl">{{ label }}</span><input type="text" data-field="{{ name }}" autocomplete="off" spellcheck="false"></label>
+{%- endmacro %}
+
+{% macro area(label, name, span=12, rows=3) -%}
+<label class="cell s{{ span }}"><span class="lbl">{{ label }}</span><textarea data-field="{{ name }}" rows="{{ rows }}"></textarea></label>
+{%- endmacro %}
+
+{% macro date(label, name, span=3) -%}
+<div class="cell s{{ span }}" data-field="{{ name }}" data-type="date"><span class="lbl">{{ label }}</span><span class="seg"><input data-part inputmode="numeric" maxlength="4" placeholder="YYYY" aria-label="{{ label }} year"><i>/</i><input data-part inputmode="numeric" maxlength="2" placeholder="MM" aria-label="{{ label }} month"><i>/</i><input data-part inputmode="numeric" maxlength="2" placeholder="DD" aria-label="{{ label }} day"></span></div>
+{%- endmacro %}
+
+{% macro time(label, name, span=3, secs=False) -%}
+<div class="cell s{{ span }}" data-field="{{ name }}" data-type="time"><span class="lbl">{{ label }}</span><span class="seg time"><input data-part inputmode="numeric" maxlength="2" placeholder="HH" aria-label="{{ label }} hours"><i>:</i><input data-part inputmode="numeric" maxlength="2" placeholder="MM" aria-label="{{ label }} minutes">{% if secs %}<i>:</i><input data-part inputmode="numeric" maxlength="2" placeholder="SS" aria-label="{{ label }} seconds">{% endif %}</span></div>
+{%- endmacro %}
+
+{% macro chk(label, name, tip='') -%}
+<label class="chk"{% if tip %} title="{{ tip }}"{% endif %}><input type="checkbox" data-field="{{ name }}"><span>{{ label }}</span></label>
+{%- endmacro %}
+
+{% macro rad(label, group, value, tip='') -%}
+<label class="chk rad"{% if tip %} title="{{ tip }}"{% endif %}><input type="radio" name="{{ group }}" value="{{ value }}" data-field="{{ group }}"><span>{{ label }}</span></label>
+{%- endmacro %}
+
+{% macro grp(label, span=12) -%}
+<div class="cell s{{ span }} grp"><span class="lbl">{{ label }}</span><div class="opts">{{ caller() }}</div></div>
+{%- endmacro %}
+
+{% macro top(copy='') -%}
+<header class="top">
+  <div class="org">Ministry of Health<br>and Long-Term Care</div>
+  <h1>Ambulance Call Report</h1>
+  <div class="conf">Confidential when completed<br>1881-45 (2017/01) 7530-4714{% if copy %}<br><b>{{ copy }}</b>{% endif %}</div>
+</header>
+{%- endmacro %}
+
+{% macro demographics() -%}
+<h2 class="bar">Demographics</h2>
+<div class="grid">
+  {{ cell('Hospital Registration Number', 'hospital_reg_no', 3) }}
+  {{ cell('Service Name', 'service_name', 3) }}
+  {{ cell('Service No.', 'service_no', 2) }}
+  {{ cell('CACC/ACS Call Number', 'cacc_call_no', 2) }}
+  {{ date('Call Date', 'call_date', 2) }}
+
+  {{ cell('Last Name', 'last_name', 3) }}
+  {{ cell('First Name', 'first_name', 3) }}
+  {{ cell('Age', 'age', 1) }}
+  {{ cell('Sex', 'sex', 1) }}
+  {{ cell('Weight (kg)', 'weight_kg', 1) }}
+  {{ date('Date of Birth', 'dob', 3) }}
+
+  {{ cell('Health Insurance Number', 'health_insurance_no', 4) }}
+  {{ cell('Version', 'hin_version', 2) }}
+  {{ cell('Mailing Address – Street No.', 'mail_street_no', 2) }}
+  {{ cell('Street Name', 'mail_street_name', 4) }}
+
+  {{ cell('City/Town', 'mail_city', 4) }}
+  {{ cell('Province', 'mail_province', 3) }}
+  {{ cell('Postal Code', 'mail_postal_code', 3) }}
+  {{ cell('Country', 'mail_country', 2) }}
+
+  {{ cell('Pick-up Location or Sending Facility (City/Town)', 'pickup_location', 6) }}
+  <div class="cell s4 chkcell">{{ chk('Same as Mailing Address Above', 'pickup_same_as_mailing') }}</div>
+  {{ cell('Pick-up Code', 'pickup_code', 2) }}
+</div>
+{%- endmacro %}
+
+{% macro pc(i, col) -%}<td><input type="text" data-field="proc_{{ i }}_{{ col }}" autocomplete="off" spellcheck="false"></td>{%- endmacro %}
+
+{% macro codeset(title, lines) -%}
+<section class="codeset"><h4>{{ title }}</h4>
+{%- for ln in lines %}
+  {%- if ln.startswith('#') %}<h5>{{ ln[1:] }}</h5>
+  {%- else %}{% set c, l = ln.split('|', 1) %}<div class="pair"><b>{{ c }}</b><span>{{ l }}</span></div>{% endif %}
+{%- endfor %}</section>
+{%- endmacro %}
+
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ambulance Call Report</title>
+{% if inline %}<style>{{ css|safe }}</style>{% else %}<link rel="stylesheet" href="{{ url_for('static', filename='acr.css') }}">{% endif %}
+</head>
+<body>
+
+{#- ======================= PAGE 1 – clinical ======================= -#}
+<section class="sheet" id="page-clinical">
+{{ top() }}
+{{ demographics() }}
+
+<h2 class="bar">Clinical Information</h2>
+<div class="grid">
+  {{ date('Date of Occurrence', 'occurrence_date', 3) }}
+  {{ time('Time of Occurrence', 'occurrence_time', 3) }}
+  {{ cell('Chief Complaint', 'chief_complaint', 6) }}
+
+  {{ cell('MOHLTC DNR Confirmation Number', 'dnr_confirmation_no', 4) }}
+  <div class="cell s8"><span class="lbl">Trauma Problem Site/Type</span><div class="note" style="margin:6px 0 0">Enter the Site/Type codes (see reference pages).</div></div>
+  {% for i in (1, 2, 3) %}
+    {{ cell('Location (' ~ i ~ ')', 'trauma' ~ i ~ '_location', 4) }}
+    {{ cell('Type', 'trauma' ~ i ~ '_type', 4) }}
+    {{ cell('Mechanism', 'trauma' ~ i ~ '_mechanism', 4) }}
+  {% endfor %}
+
+  {{ area('Incident History', 'incident_history', 12, 5) }}
+
+  {% call grp('Medications') %}
+    {{ chk('Nitrates', 'meds_nitrates') }}{{ chk('ASA', 'meds_asa') }}{{ chk('Salbutamol', 'meds_salbutamol') }}
+    {{ chk('Furosemide', 'meds_furosemide') }}{{ chk('Insulin/Oral Diabetic Meds', 'meds_insulin_oral_diabetic') }}
+    {{ chk('Phosphodiesterase Inhibitors', 'meds_pde_inhibitors') }}{{ chk('Other', 'meds_other') }}
+    {{ chk('None', 'meds_none') }}{{ chk('CNO', 'meds_cno', 'Could not obtain') }}
+  {% endcall %}
+  {{ cell('Medications – Details', 'medications_details', 12) }}
+
+  {% call grp('Relevant Past History') %}
+    {{ chk('Previously Healthy', 'history_previously_healthy') }}{{ chk('Cardiac', 'history_cardiac') }}
+    {{ chk('Respiratory', 'history_respiratory') }}{{ chk('Seizure', 'history_seizure') }}
+    {{ chk('Diabetes', 'history_diabetes') }}{{ chk('Psychiatric', 'history_psychiatric') }}
+    {{ chk('Anaphylaxis', 'history_anaphylaxis') }}{{ chk('Cancer', 'history_cancer') }}
+    {{ chk('Stroke/TIA', 'history_stroke_tia') }}{{ chk('Hypertension', 'history_hypertension') }}
+    {{ chk('Other (list below)', 'history_other') }}{{ chk('CNO', 'history_cno', 'Could not obtain') }}
+  {% endcall %}
+  {{ area('Details', 'history_details', 12, 2) }}
+
+  {% call grp('Allergies') %}
+    {{ chk('NKA', 'allergies_nka', 'No known allergies') }}{{ chk('CNO', 'allergies_cno', 'Could not obtain') }}
+    {{ chk('Other – list below', 'allergies_other') }}
+  {% endcall %}
+  {{ area('Details', 'allergies_details', 12, 2) }}
+
+  {% call grp('Treatment Prior to Arrival') %}
+    {{ chk('None', 'tpa_none') }}{{ chk('Midwife', 'tpa_midwife') }}
+    {{ chk('EFRT', 'tpa_efrt', 'Emergency First Response Team') }}{{ chk('Other Paramedic', 'tpa_other_paramedic') }}
+    {{ chk('Nurse', 'tpa_nurse') }}{{ chk('Physician', 'tpa_physician') }}{{ chk('Bystander', 'tpa_bystander') }}
+    {{ chk('Self', 'tpa_self') }}{{ chk('Fire', 'tpa_fire') }}{{ chk('Police', 'tpa_police') }}
+    {{ chk('Other (list below)', 'tpa_other') }}{{ chk('CNO', 'tpa_cno', 'Could not obtain') }}
+  {% endcall %}
+  {{ area('Details', 'tpa_details', 12, 2) }}
+</div>
+
+<h2 class="bar">Cardiac Arrest Information</h2>
+<div class="grid">
+  {% call grp('Arrest Witnessed By', 6) %}
+    {{ rad('Unwitnessed', 'arrest_witnessed_by', 'unwitnessed') }}{{ rad('Bystander', 'arrest_witnessed_by', 'bystander') }}
+    {{ rad('Trained Responder', 'arrest_witnessed_by', 'trained_responder') }}{{ rad('Paramedic', 'arrest_witnessed_by', 'paramedic') }}
+  {% endcall %}
+  {{ date('Date', 'arrest_witnessed_date', 3) }}{{ time('Start Time', 'arrest_witnessed_time', 3) }}
+
+  {% call grp('CPR Started By', 6) %}
+    {{ rad('None', 'cpr_started_by', 'none') }}{{ rad('Bystander', 'cpr_started_by', 'bystander') }}
+    {{ rad('Trained Responder', 'cpr_started_by', 'trained_responder') }}{{ rad('Paramedic', 'cpr_started_by', 'paramedic') }}
+  {% endcall %}
+  {{ date('Date', 'cpr_started_date', 3) }}{{ time('Start Time', 'cpr_started_time', 3) }}
+
+  {% call grp('First Shock By', 6) %}
+    {{ rad('None', 'first_shock_by', 'none') }}{{ rad('Bystander', 'first_shock_by', 'bystander') }}
+    {{ rad('Trained Responder', 'first_shock_by', 'trained_responder') }}{{ rad('Paramedic', 'first_shock_by', 'paramedic') }}
+  {% endcall %}
+  {{ date('Date', 'first_shock_date', 3) }}{{ time('Start Time', 'first_shock_time', 3) }}
+</div>
+
+<h2 class="bar">Physical Exam</h2>
+<div class="grid">
+  {{ cell('General Appearance', 'general_appearance', 8) }}
+  <div class="cell s4 chkcell">{{ chk('Blood thinner/Anticoagulants', 'blood_thinners') }}</div>
+
+  {% call grp('Skin Colour', 6) %}
+    {{ chk('Flushed', 'skin_colour_flushed') }}{{ chk('Pale', 'skin_colour_pale') }}{{ chk('Cyanosis', 'skin_colour_cyanosis') }}
+    {{ chk('Jaundice', 'skin_colour_jaundice') }}{{ chk('Unremarkable', 'skin_colour_unremarkable') }}
+  {% endcall %}
+  {% call grp('Skin Condition', 6) %}
+    {{ chk('Dry', 'skin_condition_dry') }}{{ chk('Clammy', 'skin_condition_clammy') }}
+    {{ chk('Diaphoretic', 'skin_condition_diaphoretic') }}{{ chk('Unremarkable', 'skin_condition_unremarkable') }}
+  {% endcall %}
+
+  {% call grp('Head/Neck', 12) %}
+    <span class="inline-label">Trachea Shifted</span>{{ rad('Midline', 'trachea_shifted', 'midline') }}{{ rad('R', 'trachea_shifted', 'right') }}{{ rad('L', 'trachea_shifted', 'left') }}
+    <span class="sep">|</span>
+    <span class="inline-label">JVD</span>{{ rad('Elevated', 'jvd', 'elevated') }}{{ rad('Not Elevated', 'jvd', 'not_elevated') }}
+  {% endcall %}
+  {% call grp('Chest', 12) %}
+    <span class="inline-label">Air Entry</span>{{ chk('Bilaterally', 'air_entry_bilateral') }}
+    <span class="inline-label">Decreased</span>{{ chk('R', 'air_entry_decreased_r') }}{{ chk('L', 'air_entry_decreased_l') }}
+    <span class="sep">|</span>
+    <span class="inline-label">Breath Sounds</span>{{ chk('Clear', 'breath_clear') }}{{ chk('Wheezes', 'breath_wheezes') }}
+    {{ chk('Crackles', 'breath_crackles') }}{{ chk('Rub', 'breath_rub') }}{{ chk('Absent', 'breath_absent') }}
+  {% endcall %}
+  {% call grp('Abdomen', 12) %}
+    {{ chk('Soft', 'abdomen_soft') }}{{ chk('Rigid', 'abdomen_rigid') }}{{ chk('Distended', 'abdomen_distended') }}
+    {{ chk('Tender', 'abdomen_tender') }}{{ chk('Mass', 'abdomen_mass') }}{{ chk('Pulsatile', 'abdomen_pulsatile') }}
+    <span class="sep">|</span>
+    {{ chk('RU', 'abdomen_ru') }}{{ chk('LU', 'abdomen_lu') }}{{ chk('LL', 'abdomen_ll') }}{{ chk('RL', 'abdomen_rl') }}{{ chk('Center', 'abdomen_center') }}
+  {% endcall %}
+  {% call grp('Back/Pelvis', 12) %}{{ chk('Unremarkable', 'back_pelvis_unremarkable') }}{% endcall %}
+  {% call grp('Extremities', 12) %}
+    {{ chk('Unremarkable', 'extremities_unremarkable') }}<span class="sep">|</span>
+    <span class="inline-label">Peripheral Edema</span>{{ rad('Absent', 'peripheral_edema', 'absent') }}{{ rad('Present', 'peripheral_edema', 'present') }}
+    <span class="sep">|</span>
+    <span class="inline-label">Pedal Pulse</span>{{ rad('Absent', 'pedal_pulse', 'absent') }}{{ rad('Present', 'pedal_pulse', 'present') }}
+  {% endcall %}
+  {% call grp('Screening', 12) %}
+    {{ chk('Positive for FREI', 'positive_frei') }}<span class="sep">|</span>
+    <span class="inline-label">Provided by:</span>{{ rad('Patient', 'provided_by', 'patient') }}{{ rad('Other:', 'provided_by', 'other') }}
+    <input type="text" data-field="provided_by_other" aria-label="Provided by other" autocomplete="off">
+  {% endcall %}
+</div>
+<div class="footer"><span>1881-45 (2017/01) 7530-4714</span><span>© Queen’s Printer for Ontario, 2017</span></div>
+</section>
+
+{#- ======================= PAGE 2 – billing ======================= -#}
+<section class="sheet" id="page-billing">
+{{ top('Billing Copy') }}
+{{ demographics() }}
+
+<h2 class="bar">Billing Information</h2>
+<div class="grid">
+  {% call grp('In my professional medical opinion ambulance use was:', 12) %}
+    {{ rad('Essential: a medical/other necessity', 'ambulance_use', 'essential') }}
+    {{ rad('Non essential: not a medical necessity/other transport suitable', 'ambulance_use', 'non_essential') }}
+  {% endcall %}
+
+  {% call grp('Disposition in Hospital – Emergency Dept.', 6) %}
+    {{ rad('Treated (observed) and released', 'hospital_disposition', 'ed_treated_released') }}
+    {{ rad('Refused treatment and released', 'hospital_disposition', 'ed_refused_released') }}
+    {{ rad('Transferred to another hospital', 'hospital_disposition', 'ed_transferred') }}
+    {{ rad('Admitted', 'hospital_disposition', 'ed_admitted') }}
+  {% endcall %}
+  {% call grp('Out Patient / In-patient / Other', 6) %}
+    {{ rad('O.P. Clinic', 'hospital_disposition', 'op_clinic') }}{{ rad('X-Ray', 'hospital_disposition', 'op_xray') }}
+    {{ rad('Ca. Clinic', 'hospital_disposition', 'op_ca_clinic') }}{{ rad('Out Patient – Other', 'hospital_disposition', 'op_other') }}
+    {{ rad('In-patient returning', 'hospital_disposition', 'inpatient_returning') }}
+    {{ rad('In-patient discharged', 'hospital_disposition', 'inpatient_discharged') }}
+    {{ rad('Morgue', 'hospital_disposition', 'morgue') }}{{ rad('Other', 'hospital_disposition', 'other') }}
+  {% endcall %}
+
+  {% call grp('Chargeable', 6) %}
+    {{ rad('Patient', 'charge_to', 'patient') }}{{ rad('Employer', 'charge_to', 'employer') }}{{ rad('W.S.I.B.', 'charge_to', 'wsib') }}
+    {{ rad('D.V.A.', 'charge_to', 'dva') }}{{ rad('D.N.D.', 'charge_to', 'dnd') }}{{ rad('Coroner', 'charge_to', 'coroner') }}
+    {{ rad('Other', 'charge_to', 'other') }}
+  {% endcall %}
+  {% call grp('Welfare Charge', 6) %}
+    {{ rad('Inter-Hospital Transfer', 'welfare_charge', 'inter_hospital_transfer') }}{{ rad('Home Care', 'welfare_charge', 'home_care') }}
+    {{ rad('Homes for Special Care', 'welfare_charge', 'homes_for_special_care') }}{{ rad('Nursing Home Patient', 'welfare_charge', 'nursing_home_patient') }}
+    {{ rad('Home for the Aged', 'welfare_charge', 'home_for_the_aged') }}
+    {{ rad('Recipient General Welfare Assistance', 'welfare_charge', 'general_welfare_assistance') }}{{ rad('Other', 'welfare_charge', 'other') }}
+  {% endcall %}
+
+  {% call grp('No Charge / Billing Evaluation', 6) %}
+    {{ chk('No Charge', 'no_charge') }}{{ chk('Basic Fee', 'billing_basic_fee') }}
+  {% endcall %}
+  {% call grp('Billed by', 6) %}
+    {{ rad('Hospital/Clinic', 'billed_by', 'hospital_clinic') }}{{ rad('Operator', 'billed_by', 'operator') }}{{ rad('Other', 'billed_by', 'other') }}
+  {% endcall %}
+
+  {{ cell('DND/RCMP', 'dnd_rcmp_no', 3) }}
+  {{ cell('Social Insurance No.', 'social_insurance_no', 3) }}
+  {{ cell('Registration No.', 'billing_registration_no', 3) }}
+  {{ cell('Hospital Code', 'billing_hospital_code', 3) }}
+
+  {{ cell('Initials', 'billing_initials', 2) }}
+  {{ cell('Patient’s portion', 'patients_portion', 2) }}
+  {{ cell('Charge for km over 40', 'charge_km_over_40', 3) }}
+  {{ cell('Amount billed', 'amount_billed', 2) }}
+  {{ cell('Other charge', 'other_charge', 3) }}
+
+  {{ cell('Signature (medical practitioner/approved authority)', 'billing_signature', 8) }}
+  {{ cell('Payment Received', 'payment_received', 4) }}
+</div>
+<div class="footer"><span>1881-45 (2017/01) Billing Copy 7530-4714</span><span>© Queen’s Printer for Ontario, 2017</span></div>
+</section>
+
+{#- ======================= PAGE 3 – treatment / administration ======================= -#}
+<section class="sheet" id="page-treatment">
+<header class="top">
+  <div class="org">1881-45 (2017/01)<br>7530-4714</div>
+  <h1 style="font-size:20px">Clinical Treatment/Procedures</h1>
+  <div class="conf"></div>
+</header>
+<div class="grid">
+  {{ cell('Call Number', 'cacc_call_no', 6) }}
+  {{ cell('Page', 'page_no', 3) }}
+  {{ cell('of', 'page_of', 3) }}
+</div>
+
+<h2 class="bar">Clinical Treatment/Procedures &nbsp;·&nbsp; Results</h2>
+<div class="tablewrap">
+<table class="proc">
+  <thead><tr>
+    <th>#</th><th>Time<br>HH : MM</th><th>Procedure<br>Code</th><th>Crew<br>Mbr. No.</th><th>Reading/<br>EtCO2</th><th>Code</th>
+    <th>Resp.<br>Rate</th><th>Pulse<br>Rate</th><th>B/P<br>Sys/Dia</th><th>Temp.</th><th>SpO2</th>
+    <th>Pupils<br>R ±</th><th>Pupils<br>L ±</th><th>Dose/Unit</th><th>Route</th><th>GCS</th><th>Pain<br>Scale</th>
+  </tr></thead>
+  <tbody id="proc-body">
+  {% for i in range(1, proc_rows + 1) %}
+    <tr data-row="{{ i }}">
+      <td class="rownum">{{ i }}</td>
+      <td><span class="seg time" data-field="proc_{{ i }}_time" data-type="time"><input data-part inputmode="numeric" maxlength="2" placeholder="HH" aria-label="Time hours"><i>:</i><input data-part inputmode="numeric" maxlength="2" placeholder="MM" aria-label="Time minutes"></span></td>
+      {% for col in ('procedure', 'crew', 'reading', 'result_code', 'resp_rate', 'pulse_rate', 'bp', 'temp', 'spo2', 'pupil_r', 'pupil_l', 'dose', 'route', 'gcs', 'pain') %}{{ pc(i, col) }}{% endfor %}
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+<p class="tools noprint"><button type="button" id="add-proc-row">+ Add row</button></p>
+
+<h2 class="bar">Crew</h2>
+<div class="grid">
+  {% for key, label in (('para1', 'Paramedic 1 (Attending)'), ('para2', 'Paramedic 2'), ('other3', 'Other'), ('other4', 'Other')) %}
+    {{ cell(label ~ ' – No.', key ~ '_no', 2) }}
+    {{ cell('Designation', key ~ '_designation', 2) }}
+    {{ cell('Name', key ~ '_name', 4) }}
+    {{ cell('Signature', key ~ '_signature', 3) }}
+    <div class="cell s1 chkcell"><b>No. {{ loop.index }}</b></div>
+  {% endfor %}
+</div>
+
+<h2 class="bar">General Administration</h2>
+<div class="grid">
+  {{ cell('Vehicle Number', 'vehicle_no', 2) }}
+  {{ cell('Station', 'station', 2) }}
+  {{ cell('Status', 'status', 2) }}
+  {{ cell('Hospital Number', 'hospital_no', 2) }}
+  {{ cell('Receiving Facility/Destination', 'receiving_facility', 4) }}
+
+  {{ cell('UTM Code', 'utm_code', 3) }}
+  {{ cell('Dispatch', 'dispatch', 3) }}
+  {{ cell('Return', 'return_priority', 3) }}
+  {{ cell('Patient Sequence', 'patient_sequence', 3) }}
+
+  {{ cell('Base Hospital Name', 'base_hospital_name', 4) }}
+  {{ cell('Base Hospital Physician Name/No. (if patch)', 'base_hospital_physician', 5) }}
+  {{ cell('Patch Log Number', 'patch_log_no', 3) }}
+</div>
+
+<h2 class="bar">Call Events</h2>
+<div class="grid">
+  {{ time('Call Received', 'ev_call_received', 3, true) }}
+  {{ time('Crew Notified', 'ev_crew_notified', 3, true) }}
+  {{ time('Crew Mobile', 'ev_crew_mobile', 3, true) }}
+  {{ time('Arrive Scene', 'ev_arrive_scene', 3, true) }}
+  {{ time('Patient Contact', 'ev_patient_contact', 3, true) }}
+  {{ time('Depart Scene', 'ev_depart_scene', 3, true) }}
+  {{ time('Arrive Destination', 'ev_arrive_destination', 3, true) }}
+  {{ date('Date of ACR Completion', 'acr_completion_date', 3) }}
+  {{ time('Time of ACR Completion', 'acr_completion_time', 3) }}
+</div>
+
+<h2 class="bar">Remarks &nbsp;·&nbsp; Disposition</h2>
+<div class="grid">
+  {{ area('Remarks', 'remarks', 12, 6) }}
+  {{ cell('Primary Problem', 'primary_problem', 4) }}
+  {{ cell('Problem Code', 'problem_code', 2) }}
+  {{ cell('Sp Trans Code', 'sp_trans_code', 2) }}
+  {{ cell('Base Hospital Number', 'base_hospital_number', 4) }}
+  {{ area('Disposition of Effects', 'disposition_of_effects', 12, 2) }}
+
+  {% call grp('Deceased', 8) %}
+    {{ chk('Obviously dead', 'deceased_obviously_dead') }}{{ chk('DNR', 'deceased_dnr') }}{{ chk('BHP TOR', 'deceased_bhp_tor') }}
+    {{ chk('Pronounced by on scene physician', 'deceased_pronounced_by_physician') }}
+  {% endcall %}
+  {{ cell('Physician/BHP Name (if pronounced/TOR)', 'deceased_physician_name', 4) }}
+
+  {{ cell('CTAS Arrive Patient', 'ctas_arrive_patient', 2) }}
+  {{ cell('CTAS Depart Scene', 'ctas_depart_scene', 2) }}
+  {{ cell('CTAS Arrive Destination', 'ctas_arrive_destination', 2) }}
+  {% call grp('Warning Systems – To Scene', 3) %}{{ rad('None', 'warning_to_scene', 'none') }}{{ rad('Emergency Systems', 'warning_to_scene', 'emergency') }}{% endcall %}
+  {% call grp('Warning Systems – To Destination', 3) %}{{ rad('None', 'warning_to_destination', 'none') }}{{ rad('Emergency Systems', 'warning_to_destination', 'emergency') }}{% endcall %}
+
+  {{ date('TOC (Transfer of Care) – Date', 'toc_date', 3) }}
+  {{ time('Time', 'toc_time', 2) }}
+  {% call grp('Transfer of Care to', 7) %}
+    {{ chk('Receiving Staff', 'toc_receiving_staff') }}{{ chk('Family', 'toc_family') }}{{ chk('Other (list):', 'toc_other') }}
+    <input type="text" data-field="toc_other_text" aria-label="Transfer of care other" autocomplete="off">
+  {% endcall %}
+</div>
+<div class="copies"><span>1 – Patient Chart Copy</span><span>2 – Billing Office Copy</span><span>3 – Base Hospital Copy</span><span>4 – Ambulance Service Copy</span></div>
+<div class="footer"><span>1881-45 (2017/01) 7530-4714</span><span>© Queen’s Printer for Ontario, 2017</span></div>
+</section>
+
+{#- ======================= PAGE 4 – code tables ======================= -#}
+<section class="sheet" id="page-codes">
+<header class="top">
+  <div class="org">1881-45 (2017/01)<br>7530-4714</div>
+  <h1 style="font-size:20px">Ambulance Call Report – Codes</h1>
+  <div class="conf"></div>
+</header>
+<div class="codes">
+{% for title, lines in reference %}{{ codeset(title, lines) }}{% endfor %}
+</div>
+<div class="footer"><span>1881-45 (2017/01) 7530-4714</span><span>© Queen’s Printer for Ontario, 2017</span></div>
+</section>
+
+{#- ======================= PAGE 5 – reference + refusal ======================= -#}
+<section class="sheet" id="page-reference">
+<header class="top">
+  <div class="org">1881-45 (2017/01)<br>7530-4714</div>
+  <h1 style="font-size:20px">Reference Information</h1>
+  <div class="conf"></div>
+</header>
+
+<h3 class="bar" style="margin-top:0">Skin</h3>
+<table class="ref">
+  <tr><th>Skin Colour</th><td>Flushed · Pale · Cyanosis · Jaundice · Unremarkable</td></tr>
+  <tr><th>Skin Condition</th><td>Dry · Clammy · Diaphoretic · Unremarkable</td></tr>
+</table>
+
+<div class="refgrid">
+{% for scale, cols in gcs.items() %}
+  <div>
+  <h3 class="bar">{{ scale }}</h3>
+  <table class="ref">
+    <thead><tr>{% for h in cols %}<th>{{ h }}</th>{% endfor %}</tr></thead>
+    <tbody>
+    {% set n = cols.values() | map('length') | max %}
+    {% for r in range(n) %}<tr>{% for h, items in cols.items() %}<td>{% if r < items | length %}{% set c, l = items[r].split('|', 1) %}<b>{{ c }}</b> {{ l }}{% endif %}</td>{% endfor %}</tr>{% endfor %}
+    </tbody>
+  </table>
+  </div>
+{% endfor %}
+</div>
+
+<div class="refgrid">
+  <div>
+    <h3 class="bar">Normal Pediatric Vital Signs</h3>
+    <table class="ref">
+      <thead><tr><th>Age</th><th>Respiratory Rate</th><th>Heart Rate</th></tr></thead>
+      <tbody>{% for age, rr, hr in pediatric_vitals %}<tr><td>{{ age }}</td><td>{{ rr }}</td><td>{{ hr }}</td></tr>{% endfor %}</tbody>
+    </table>
+    <p class="note">Systolic Blood Pressure (for children 1-10 yrs) &gt; 90 + (2x age in years)<br>Weight (kg) = (age x 2) + 10</p>
+    <h3 class="bar">Definition of Hypoglycemia</h3>
+    <table class="ref">
+      <tr><td>&gt;2 years</td><td>Glucometry &lt;4.0 mmol/L</td></tr>
+      <tr><td>&lt;2 years</td><td>Glucometry &lt;3.0 mmol/L</td></tr>
+    </table>
+  </div>
+  <div>
+    <h3 class="bar">APGAR Score</h3>
+    <table class="ref">
+      <thead><tr><th>Parameter</th><th>0</th><th>1</th><th>2</th></tr></thead>
+      <tbody>{% for p, a, b, c in apgar %}<tr><th>{{ p }}</th><td>{{ a }}</td><td>{{ b }}</td><td>{{ c }}</td></tr>{% endfor %}</tbody>
+    </table>
+    <p class="note">APGAR performed at 1 &amp; 5 minutes after delivery. Don’t wait for APGAR to make decision on resuscitation.</p>
+  </div>
+</div>
+
+<h3 class="bar">0 – 10 Numeric Pain Intensity Scale</h3>
+<div class="pain">
+  {% for n in range(0, 11) %}<div><b>{{ n }}</b>{% if n in pain_labels %}<br>{{ pain_labels[n] }}{% else %}<br>&nbsp;{% endif %}</div>{% endfor %}
+</div>
+
+<h2 class="bar">Aid to Capacity Evaluation <span style="text-transform:none;font-weight:normal">(Record Details in ‘Remarks’ Section)</span></h2>
+<div class="grid">
+  {% call grp('Responsible adult on scene', 12) %}{{ rad('Yes', 'cap_responsible_adult', 'yes') }}{{ rad('No', 'cap_responsible_adult', 'no') }}{% endcall %}
+  {% call grp('Patient verbalizes/communicates understanding of clinical situation? (e.g., what is wrong with you?)', 12) %}
+    {{ rad('Yes', 'cap_understanding', 'yes') }}{{ rad('No – Requires consideration of capacity', 'cap_understanding', 'no') }}
+  {% endcall %}
+  {{ cell('Indicate to whom this assessment refers if not the patient [e.g., parent, or substitute decision maker (SDM)]', 'cap_assessment_subject', 12) }}
+  {% call grp('Patient verbalizes/communicates appreciation of applicable risks? (e.g., what could happen if I don’t help you?)', 12) %}
+    {{ rad('Yes', 'cap_appreciation', 'yes') }}{{ rad('No – Requires consideration of capacity', 'cap_appreciation', 'no') }}
+  {% endcall %}
+  {% call grp('Patient verbalizes/communicates ability to make alternative plan for care? (e.g., what will you do once I leave?)', 12) %}
+    {{ rad('Yes', 'cap_alternative_plan', 'yes') }}{{ rad('No – Requires consideration of capacity', 'cap_alternative_plan', 'no') }}
+  {% endcall %}
+</div>
+
+<h2 class="bar">Refusal of Service / Refus de service</h2>
+<div class="bilingual">
+  <p>I have been advised that treatment and/or transportation is available immediately. I refuse such treatment and/or transportation to hospital having been informed of the risks involved. I assume full responsibility arising out of such refusal.</p>
+  <p lang="fr">On m’a avisé que je pouvais être traité ou transporté à l’hôpital immédiatement. Je refuse d’être traité ou transporté à l’hôpital. J’ai été informé des risques auxquels cette décision m’expose. J’assume l’entière responsabilité de ce refus.</p>
+</div>
+<div class="grid">
+  {{ area('Patient/Substitute decision maker (SDM) – print name and address / Patient/mandataire spécial (MS) – Nom et adresse en lettres moulées', 'refusal_patient_name_address', 12, 2) }}
+  {{ cell('Signature of Patient or SDM / Signature du patient ou du MS', 'refusal_patient_signature', 5) }}
+  {{ cell('If SDM, relationship to Patient / Si MS, relation avec le patient', 'refusal_relationship', 3) }}
+  {{ date('Date', 'refusal_patient_date', 2) }}{{ time('Time', 'refusal_patient_time', 2) }}
+</div>
+<div class="bilingual">
+  <p>I have advised this patient or SDM of the risks to the patient’s health that are involved.<br>
+  <span lang="fr">J’ai avisé le patient ou le MS des risques de cette décision pour la santé du patient.</span></p>
+</div>
+<div class="grid">
+  {{ cell('Attending Paramedic Signature', 'refusal_paramedic_signature', 8) }}
+  {{ date('Date', 'refusal_paramedic_date', 2) }}{{ time('Time', 'refusal_paramedic_time', 2) }}
+</div>
+<div class="bilingual">
+  <p>I was witness to the above-mentioned refusal and that the person has been informed of the risks involved.<br>
+  <span lang="fr">J’ai été témoin du refus susmentionné et du fait que la personne a été informée des risques de ce refus.</span></p>
+</div>
+<div class="grid">
+  {{ cell('Non Paramedic Witness Name / Nom du témoin autre qu’un ambulancier paramédical', 'refusal_witness_name', 8) }}
+  {{ date('Date', 'refusal_witness_date', 2) }}{{ time('Time', 'refusal_witness_time', 2) }}
+  {{ cell('Witness/Paramedic 2 Signature / Signature du témoin/d’un 2e ambulancier paramédical', 'refusal_witness_signature', 12) }}
+</div>
+<div class="footer"><span>1881-45 (2017/01) 7530-4714</span><span>© Queen’s Printer for Ontario, 2017</span></div>
+</section>
+
+{% if inline %}<script>{{ js|safe }}</script>{% else %}<script src="{{ url_for('static', filename='acr.js') }}"></script>{% endif %}
+{% if prefill %}<script>window.ACR_PREFILL = {{ prefill | tojson }}; if (window.ACR && document.readyState !== 'loading') ACR.populate(window.ACR_PREFILL);</script>{% endif %}
+</body>
+</html>
