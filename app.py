@@ -237,7 +237,7 @@ def _voice_command_target(transcript, encounters):
     if encounter is None:
         print("voice command: open incident id not recognized")
         return None
-    print(f"voice command: open incident {encounter["encounter_id"]}")
+    print(f"voice command: open incident {encounter['encounter_id']}")
     return url_for("open_report", eid=encounter["encounter_id"])
 
 
