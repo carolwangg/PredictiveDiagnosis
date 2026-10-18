@@ -393,8 +393,10 @@
         "Allergies not recorded (Required before ED handoff)"
       ],
       "paramedic_signed_off": false,
-      "acr": {},
-      "updated_at": "2026-10-17T21:12:16-04:00",
+      "acr": {
+        "procedures": []
+      },
+      "updated_at": "2026-10-17T21:34:58-04:00",
       "created_at": "2026-10-17T21:12:16-04:00",
       "incident_no": 441371
     }

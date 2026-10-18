@@ -59,10 +59,12 @@
     $('inc-no').textContent = r.incident_no;
     document.title = 'Incident ' + r.incident_no + ' – Ambulance Call Report';
     $('btn-record').disabled = !!r.signed;
-    $('btn-record').title = r.signed ? 'Reopen this report before recording an update' : 'Record an update for this incident';
+    $('btn-record').title = r.signed ? 'Unpost this report before recording an update' : 'Record an update for this incident';
     pill.textContent = r.signed ? 'Posted' : 'Unposted';
     pill.dataset.signed = r.signed ? 'true' : 'false';
-    signBtn.textContent = r.signed ? 'Reopen' : 'Sign & transmit';
+    signBtn.textContent = r.signed ? 'Unpost' : 'Post';
+    signBtn.setAttribute('aria-label', r.signed ? 'Unpost incident' : 'Post incident');
+    signBtn.classList.toggle('primary', !r.signed);
     renderAlerts();
   }
 
@@ -90,9 +92,9 @@
     go.then(function () {
       if (target && meta.missing_fields.length &&
           !confirm('This report still has open items:\n\n• ' + meta.missing_fields.join('\n• ') +
-                   '\n\nSign & transmit anyway?')) return null;
+                   '\n\nPost this incident anyway?')) return null;
       return api('POST', meta.api + '/' + meta.id + '/sign', { signed: target }).then(function (r) {
-        applyResult(r); setState(target ? 'Signed & transmitted' : 'Reopened for editing');
+        applyResult(r); setState(target ? 'Incident posted' : 'Post removed');
       });
     }).catch(function (e) { if (e.message !== 'busy') setState('Failed – ' + e.message, 'err'); });
   }
@@ -104,7 +106,7 @@
     isDisabled: function () { return !!meta.signed; },
     url: function () { return meta.api + '/' + encodeURIComponent(meta.id) + '/audio'; },
     beforeStart: function () {
-      if (meta.signed) return Promise.reject(new Error('Reopen this report before recording an update.'));
+      if (meta.signed) return Promise.reject(new Error('Unpost this report before recording an update.'));
       return dirty || !meta.id ? save() : Promise.resolve();
     },
     onResult: function (result) {

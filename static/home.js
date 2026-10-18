@@ -77,7 +77,7 @@
     $('sel-sub').textContent = [e.name, e.chief_complaint].filter(Boolean).join(' · ') || (e.address[0] || '');
     $('act-open').href = cfg.page + '/' + encodeURIComponent(e.encounter_id);
     $('act-record').disabled = !!e.signed && $('act-record').dataset.state !== 'recording';
-    $('act-record').title = e.signed ? 'Reopen this report before recording an update' : 'Record an update for this incident';
+    $('act-record').title = e.signed ? 'Unpost this report before recording an update' : 'Record an update for this incident';
   }
 
   function select(id) {
@@ -128,9 +128,27 @@
         all = d.encounters;
         if (selected && !current()) selected = null;
         render();
+        return true;
       })
-      .catch(function (e) { $('subtitle').textContent = 'Could not load reports'; toast('Could not load reports – ' + e.message, true); });
+      .catch(function (e) {
+        $('subtitle').textContent = 'Could not load reports';
+        toast('Could not load reports – ' + e.message, true);
+        return false;
+      });
   }
+
+  $('btn-refresh').addEventListener('click', function () {
+    var button = $('btn-refresh');
+    if (button.disabled) return;
+    button.disabled = true;
+    button.setAttribute('aria-busy', 'true');
+    load().then(function (loaded) {
+      if (loaded) toast('Incident list refreshed');
+    }).finally(function () {
+      button.disabled = false;
+      button.setAttribute('aria-busy', 'false');
+    });
+  });
 
   /* ---------- events ---------- */
   listEl.addEventListener('click', function (ev) {
@@ -161,7 +179,10 @@
     });
   });
 
-  $('act-clear').addEventListener('click', function () { if ($('act-record').dataset.state === 'idle') select(selected); });
+  $('act-clear').addEventListener('click', function () {
+    var state = $('act-record').dataset.state;
+    if ((!state || state === 'idle') && selected) select(selected);
+  });
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape' && selected && !$('confirm').open &&
         (!$('act-record').dataset.state || $('act-record').dataset.state === 'idle')) select(selected);
@@ -183,13 +204,6 @@
       .then(function () { toast('Incident ' + e.incident_no + ' removed'); selected = null; return load(); })
       .catch(function (err) { toast('Remove failed – ' + err.message, true); });
   });
-
-  // "More" menu
-  var menu = $('more-menu'), mbtn = $('more-btn');
-  function closeMenu() { menu.hidden = true; mbtn.setAttribute('aria-expanded', 'false'); }
-  mbtn.addEventListener('click', function (e) { e.stopPropagation(); menu.hidden = !menu.hidden; mbtn.setAttribute('aria-expanded', String(!menu.hidden)); });
-  document.addEventListener('click', closeMenu);
-  menu.addEventListener('click', function (e) { if (e.target.dataset.act === 'refresh') { load().then(function () { toast('List refreshed'); }); } closeMenu(); });
 
   window.addEventListener('pageshow', function (e) { if (e.persisted) load(); });   // back button after editing
   load();

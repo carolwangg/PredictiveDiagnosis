@@ -10,11 +10,12 @@
   Click a row to select it, then use the action bar: **Add report**, **Update report** (opens the form),
   **Record audio**, **Remove**. Recording is available for unposted incidents; allow microphone access,
   speak the update, then press **Stop recording**. The transcript is extracted into ACR fields and saved
-  automatically. `New Incident` (top) and the row's arrow button also open the form. Double-click opens a row.
+  automatically. `New Incident` and the refresh button are at the top right; the refresh icon spins while
+  the incident list reloads. The row's arrow button also opens the form. Double-click opens a row.
 * `/encounters/new` – blank form; the record is created in the JSON file on first **Save**.
 * `/encounters/<id>` – the form prefilled from that encounter. **Save** (or Ctrl/Cmd+S) writes it back;
-  **Record audio** adds a voice update to the open incident; **Sign & transmit** sets
-  `paramedic_signed_off` (button becomes **Reopen**).
+  **Record audio** adds a voice update to the open incident; **Post** sets `paramedic_signed_off`
+  (button becomes **Unpost**).
 
 The web microphone is controlled by the browser, so the app must be served from localhost or another
 secure context and microphone permission must be granted. Stop recording to automatically transcribe

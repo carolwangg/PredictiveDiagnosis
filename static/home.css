@@ -28,11 +28,10 @@ button, input { font: inherit; color: inherit; }
   border-bottom: 1px solid var(--line);
 }
 .top-inner, .tools { width: min(980px, 100% - 24px); margin: 0 auto; }
-.top-inner { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; padding: 14px 0 10px; }
+.top-inner { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 14px 0 10px; }
 .brand { display: flex; align-items: center; gap: 12px; }
 .logo {
-  display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; color: #fff;
-  background: #d23a4a;
+  display: block; width: 40px; height: 40px; border-radius: 12px; object-fit: contain;
 }
 .brand h1 { margin: 0; font-size: 19px; letter-spacing: -.2px; }
 .brand p { margin: 0; font-size: 12px; color: var(--muted); }
@@ -45,22 +44,16 @@ a.new {
 a.new:hover { background: var(--btn-dark); }
 a.new:active { background: #14378f; }
 
-.more { position: relative; justify-self: end; }
-.more-btn {
-  display: inline-flex; align-items: center; gap: 4px; padding: 9px 12px; border-radius: 12px; cursor: pointer;
-  background: var(--card); border: 1px solid var(--line); font-weight: 600; font-size: 13px;
+.header-actions { display: flex; align-items: center; justify-self: end; gap: 9px; }
+.refresh {
+  display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border-radius: 50%;
+  cursor: pointer; color: var(--brand); background: var(--card); border: 1px solid var(--line);
+  transition: background-color .12s, color .12s;
 }
-.more-btn { transition: background-color .12s; }
-.more-btn:hover { background: var(--card-dark); }
-.menu {
-  position: absolute; right: 0; top: calc(100% + 6px); min-width: 180px; padding: 6px; border-radius: 12px;
-  background: var(--card); border: 1px solid var(--line);
-}
-.menu button, .menu a {
-  display: block; width: 100%; text-align: left; padding: 9px 12px; border: 0; border-radius: 8px;
-  background: none; color: var(--ink); text-decoration: none; cursor: pointer; font-size: 14px;
-}
-.menu button:hover, .menu a:hover { background: var(--card-dark); }
+.refresh:hover { background: var(--card-dark); color: var(--brand-2); }
+.refresh:disabled { cursor: progress; opacity: .7; }
+.refresh[aria-busy="true"] svg { animation: refresh-spin .8s linear infinite; }
+@keyframes refresh-spin { to { transform: rotate(360deg); } }
 
 .tools { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 0 0 12px; }
 .search {
@@ -192,8 +185,10 @@ dialog .row { display: flex; justify-content: flex-end; gap: 8px; }
 
 /* ---------- responsive ---------- */
 @media (max-width: 760px) {
-  .top-inner { grid-template-columns: 1fr auto; }
-  a.new { grid-column: 1 / -1; grid-row: 2; justify-content: center; }
+  .top-inner { grid-template-columns: minmax(0, 1fr) auto; }
+  .header-actions { gap: 6px; }
+  a.new { padding: 10px 14px; font-size: 14px; }
+  .refresh { width: 40px; height: 40px; }
   .card { grid-template-columns: 1fr auto auto; grid-template-areas: "inc state go" "addr addr go" "badge when go"; gap: 10px 12px; }
   .inc { grid-area: inc; } .state { grid-area: state; } a.go { grid-area: go; height: 100%; min-height: 56px; width: 42px; }
   .addr { grid-area: addr; border-left: 0; padding-left: 0; }
@@ -201,5 +196,14 @@ dialog .row { display: flex; justify-content: flex-end; gap: 8px; }
   .when small { display: none; }
   .actionbar { flex-direction: column; align-items: stretch; bottom: 10px; }
   .acts { justify-content: stretch; } .act { flex: 1; justify-content: center; } .x { position: absolute; top: 6px; right: 6px; }
+}
+@media (max-width: 400px) {
+  .brand { gap: 8px; }
+  .brand h1 { font-size: 14px; }
+  .brand p { display: none; }
+  .header-actions { gap: 4px; }
+  a.new { gap: 4px; padding: 8px 9px; font-size: 12px; }
+  a.new svg { width: 18px; height: 18px; }
+  .refresh { width: 36px; height: 36px; }
 }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
