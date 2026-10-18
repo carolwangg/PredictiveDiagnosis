@@ -19,15 +19,20 @@
   (button becomes **Unpost**).
 
 The web microphone is controlled by the browser, so the app must be served from localhost or another
-secure context and microphone permission must be granted. Stop recording to automatically transcribe
-with faster-whisper, extract sparse ACR form fields with Ollama (`llama3:latest`), and merge those
-fields into the selected incident without clearing existing form data. Audio is uploaded only to this
-app, held temporarily for transcription, and then discarded. The standalone `python prehospital_scribe.py`
-workflow remains interactive in the terminal and uses local Ollama.
+secure context and microphone permission must be granted. While recording on an incident page, the
+app periodically transcribes the accumulated audio with faster-whisper and updates the transcript
+sidebar, including its wording highlights. Stop recording to run the existing final transcription,
+extract sparse ACR form fields with Ollama (`llama3:latest`), and merge those fields into the selected
+incident without clearing existing form data. Audio is uploaded only to this app, held temporarily
+for transcription, and then discarded. The standalone `python prehospital_scribe.py` workflow remains
+interactive in the terminal and uses local Ollama.
 With `TEST=True` in `.env`, incident pages also show **Upload audio** and a text box for sending a
-typed or pasted transcript directly to the scribe. Text input skips Whisper and goes straight to
-Ollama; uploaded audio continues through transcription and extraction. Restart the app after
-changing `.env`.
+typed or pasted transcript directly to the scribe. A collapsible **Transcript** sidebar displays
+and lets you edit the recognized text, and highlights a few common recognition artifacts and
+repeated words for review. Test-mode recordings and uploaded audio stop after transcription until
+you press **Send transcript to scribe**; text input skips Whisper and goes straight to Ollama.
+Outside test mode, microphone audio is sent to Ollama automatically after transcription. Restart
+the app after changing `.env`.
 
 Set `REMOTE=True` in `.env` to route Ollama requests through an SSH tunnel. When both `REMOTE=True`
 and `TEST=True`, audio selected with **Upload audio** is transcribed by the Vultr VM's Faster-Whisper

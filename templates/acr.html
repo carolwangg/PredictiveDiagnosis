@@ -35,8 +35,33 @@
 </header>
 {%- endmacro %}
 
-{% macro demographics() -%}
-<h2 class="bar">Demographics</h2>
+{% macro section_mic(section) -%}
+{% if encounter %}<button type="button" class="section-record noprint" data-scribe-section="{{ section }}" aria-label="Record audio for {{ section.replace('-', ' ') }}">
+  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8"/></svg>
+  <span class="sr-only">Record section audio</span>
+</button>
+{% if test_audio_import %}<span class="section-audio-upload noprint">
+  <input type="file" data-scribe-audio-file accept="audio/*,.webm,.ogg,.mp4,.m4a,.mp3,.wav" hidden>
+  <button type="button" class="section-upload-button" data-scribe-upload="{{ section }}" aria-label="Upload audio for {{ section.replace('-', ' ') }}" title="Upload audio for {{ section.replace('-', ' ') }}">
+    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4m-5 5 5-5 5 5"/><path d="M5 14v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/></svg>
+    <span>Upload audio</span>
+  </button>
+</span>{% endif %}
+{% endif %}
+{%- endmacro %}
+
+{% macro section_heading(title, content_id, section) -%}
+<h2 class="bar section-heading">
+  <button type="button" class="section-toggle" aria-expanded="true" aria-controls="{{ content_id }}"><span>{{ title }}</span><span class="section-toggle-label">Hide</span></button>
+  <button type="button" class="section-clear noprint" data-clear-section="{{ content_id }}" aria-label="Clear all data in {{ title }}" title="Clear all data in {{ title }}">Clear</button>
+  {{ section_mic(section) }}
+</h2>
+{%- endmacro %}
+
+{% macro demographics(section_id, section) -%}
+<div class="acr-toggle-section">
+{{ section_heading('Demographics', section_id, section) }}
+<div class="acr-toggle-content" id="{{ section_id }}">
 <div class="grid">
   {{ cell('Hospital Registration Number', 'hospital_reg_no', 3) }}
   {{ cell('Service Name', 'service_name', 3) }}
@@ -64,6 +89,8 @@
   {{ cell('Pick-up Location or Sending Facility (City/Town)', 'pickup_location', 6) }}
   <div class="cell s4 chkcell">{{ chk('Same as Mailing Address Above', 'pickup_same_as_mailing') }}</div>
   {{ cell('Pick-up Code', 'pickup_code', 2) }}
+</div>
+</div>
 </div>
 {%- endmacro %}
 
@@ -95,27 +122,41 @@
     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8"/></svg>
     <span>Record audio</span>
   </button>
+  <button type="button" class="btn" id="btn-transcript" aria-controls="transcript-sidebar" aria-expanded="false">Transcript</button>
   {% if test_audio_import %}
-  <div class="test-text-scribe">
+  <div class="test-audio-import">
     <input type="file" id="audio-file" accept="audio/*,.webm,.ogg,.mp4,.m4a,.mp3,.wav" hidden>
     <button type="button" class="btn" id="btn-import-audio" {% if encounter.signed %}disabled title="Unpost this report before importing audio"{% endif %}>Upload audio</button>
-    <textarea id="scribe-text" rows="2" aria-label="Transcript text for scribe" placeholder="Type or paste a transcript"></textarea>
-    <button type="button" class="btn" id="btn-scribe-text" {% if encounter.signed %}disabled title="Unpost this report before sending text"{% endif %}>Send text to scribe</button>
   </div>
   {% endif %}
   <button type="button" class="btn {{ '' if encounter.signed else 'primary' }}" id="btn-sign" aria-label="{{ 'Unpost incident' if encounter.signed else 'Post incident' }}">{{ 'Unpost' if encounter.signed else 'Post' }}</button>
-  <button type="button" class="btn primary" id="btn-save">Save</button>
 </div>
 <div class="alerts noprint" id="alerts" hidden></div>
 <script type="application/json" id="enc-data">{{ encounter | tojson }}</script>
+<aside id="transcript-sidebar" class="transcript-sidebar noprint" aria-label="Paramedic transcript" hidden>
+  <div class="transcript-heading">
+    <h2>Paramedic transcript</h2>
+    <button type="button" class="btn transcript-close" id="btn-transcript-close" aria-label="Close transcript">Close</button>
+  </div>
+  <p id="transcript-status" class="transcript-status" role="status">Transcript will appear here after recording or upload.</p>
+  <div id="transcript-review" class="transcript-review" aria-label="Transcript review and wording flags"></div>
+  <label class="transcript-label" for="scribe-text">Transcript text</label>
+  <textarea id="scribe-text" aria-label="Transcript text for scribe" placeholder="Transcript will appear here. You can edit it before sending."></textarea>
+  <p class="transcript-note">Highlighted phrases are possible transcription artifacts or repeated words. Review them; this is not a clinical validation.</p>
+  {% if test_audio_import %}
+  <button type="button" class="btn primary" id="btn-scribe-text" {% if encounter.signed %}disabled title="Unpost this report before sending text"{% endif %}>Send transcript to scribe</button>
+  {% endif %}
+</aside>
 {% endif %}
 
 {#- ======================= PAGE 1 – clinical ======================= -#}
 <section class="sheet" id="page-clinical">
 {{ top() }}
-{{ demographics() }}
+{{ demographics('clinical-demographics-content', 'demographics') }}
 
-<h2 class="bar">Clinical Information</h2>
+<div class="acr-toggle-section">
+{{ section_heading('Clinical Information', 'clinical-info-content', 'clinical-information') }}
+<div class="acr-toggle-content" id="clinical-info-content">
 <div class="grid">
   {{ date('Date of Occurrence', 'occurrence_date', 3) }}
   {{ time('Time of Occurrence', 'occurrence_time', 3) }}
@@ -164,8 +205,11 @@
   {% endcall %}
   {{ area('Details', 'tpa_details', 12, 2) }}
 </div>
+</div>
 
-<h2 class="bar">Cardiac Arrest Information</h2>
+<div class="acr-toggle-section">
+{{ section_heading('Cardiac Arrest Information', 'cardiac-arrest-content', 'cardiac-arrest-information') }}
+<div class="acr-toggle-content" id="cardiac-arrest-content">
 <div class="grid">
   {% call grp('Arrest Witnessed By', 6) %}
     {{ rad('Unwitnessed', 'arrest_witnessed_by', 'unwitnessed') }}{{ rad('Bystander', 'arrest_witnessed_by', 'bystander') }}
@@ -185,8 +229,11 @@
   {% endcall %}
   {{ date('Date', 'first_shock_date', 3) }}{{ time('Start Time', 'first_shock_time', 3) }}
 </div>
+</div>
 
-<h2 class="bar">Physical Exam</h2>
+<div class="acr-toggle-section">
+{{ section_heading('Physical Exam', 'physical-exam-content', 'physical-exam') }}
+<div class="acr-toggle-content" id="physical-exam-content">
 <div class="grid">
   {{ cell('General Appearance', 'general_appearance', 8) }}
   <div class="cell s4 chkcell">{{ chk('Blood thinner/Anticoagulants', 'blood_thinners') }}</div>
@@ -231,15 +278,18 @@
     <input type="text" data-field="provided_by_other" aria-label="Provided by other" autocomplete="off">
   {% endcall %}
 </div>
+</div>
 <div class="footer"><span>1881-45 (2017/01) 7530-4714</span><span>© Queen’s Printer for Ontario, 2017</span></div>
 </section>
 
 {#- ======================= PAGE 2 – billing ======================= -#}
 <section class="sheet" id="page-billing">
 {{ top('Billing Copy') }}
-{{ demographics() }}
+{{ demographics('billing-demographics-content', 'demographics') }}
 
-<h2 class="bar">Billing Information</h2>
+<div class="acr-toggle-section">
+{{ section_heading('Billing Information', 'billing-info-content', 'billing-information') }}
+<div class="acr-toggle-content" id="billing-info-content">
 <div class="grid">
   {% call grp('In my professional medical opinion ambulance use was:', 12) %}
     {{ rad('Essential: a medical/other necessity', 'ambulance_use', 'essential') }}
@@ -293,6 +343,7 @@
   {{ cell('Signature (medical practitioner/approved authority)', 'billing_signature', 8) }}
   {{ cell('Payment Received', 'payment_received', 4) }}
 </div>
+</div>
 <div class="footer"><span>1881-45 (2017/01) Billing Copy 7530-4714</span><span>© Queen’s Printer for Ontario, 2017</span></div>
 </section>
 
@@ -309,7 +360,9 @@
   {{ cell('of', 'page_of', 3) }}
 </div>
 
-<h2 class="bar">Clinical Treatment/Procedures &nbsp;·&nbsp; Results</h2>
+<div class="acr-toggle-section">
+{{ section_heading('Clinical Treatment/Procedures - Results', 'clinical-procedures-content', 'clinical-treatment-procedures') }}
+<div class="acr-toggle-content" id="clinical-procedures-content">
 <div class="tablewrap">
 <table class="proc">
   <thead><tr>
@@ -329,8 +382,12 @@
 </table>
 </div>
 <p class="tools noprint"><button type="button" id="add-proc-row">+ Add row</button></p>
+</div>
+</div>
 
-<h2 class="bar">Crew</h2>
+<div class="acr-toggle-section">
+{{ section_heading('Crew', 'crew-content', 'crew') }}
+<div class="acr-toggle-content" id="crew-content">
 <div class="grid">
   {% for key, label in (('para1', 'Paramedic 1 (Attending)'), ('para2', 'Paramedic 2'), ('other3', 'Other'), ('other4', 'Other')) %}
     {{ cell(label ~ ' – No.', key ~ '_no', 2) }}
@@ -340,8 +397,12 @@
     <div class="cell s1 chkcell"><b>No. {{ loop.index }}</b></div>
   {% endfor %}
 </div>
+</div>
+</div>
 
-<h2 class="bar">General Administration</h2>
+<div class="acr-toggle-section">
+{{ section_heading('General Administration', 'general-administration-content', 'general-administration') }}
+<div class="acr-toggle-content" id="general-administration-content">
 <div class="grid">
   {{ cell('Vehicle Number', 'vehicle_no', 2) }}
   {{ cell('Station', 'station', 2) }}
@@ -358,8 +419,12 @@
   {{ cell('Base Hospital Physician Name/No. (if patch)', 'base_hospital_physician', 5) }}
   {{ cell('Patch Log Number', 'patch_log_no', 3) }}
 </div>
+</div>
+</div>
 
-<h2 class="bar">Call Events</h2>
+<div class="acr-toggle-section">
+{{ section_heading('Call Events', 'call-events-content', 'call-events') }}
+<div class="acr-toggle-content" id="call-events-content">
 <div class="grid">
   {{ time('Call Received', 'ev_call_received', 3, true) }}
   {{ time('Crew Notified', 'ev_crew_notified', 3, true) }}
@@ -371,8 +436,12 @@
   {{ date('Date of ACR Completion', 'acr_completion_date', 3) }}
   {{ time('Time of ACR Completion', 'acr_completion_time', 3) }}
 </div>
+</div>
+</div>
 
-<h2 class="bar">Remarks &nbsp;·&nbsp; Disposition</h2>
+<div class="acr-toggle-section">
+{{ section_heading('Remarks - Disposition', 'remarks-content', 'remarks-disposition') }}
+<div class="acr-toggle-content" id="remarks-content">
 <div class="grid">
   {{ area('Remarks', 'remarks', 12, 6) }}
   {{ cell('Primary Problem', 'primary_problem', 4) }}
@@ -399,6 +468,8 @@
     {{ chk('Receiving Staff', 'toc_receiving_staff') }}{{ chk('Family', 'toc_family') }}{{ chk('Other (list):', 'toc_other') }}
     <input type="text" data-field="toc_other_text" aria-label="Transfer of care other" autocomplete="off">
   {% endcall %}
+</div>
+</div>
 </div>
 <div class="copies"><span>1 – Patient Chart Copy</span><span>2 – Billing Office Copy</span><span>3 – Base Hospital Copy</span><span>4 – Ambulance Service Copy</span></div>
 <div class="footer"><span>1881-45 (2017/01) 7530-4714</span><span>© Queen’s Printer for Ontario, 2017</span></div>

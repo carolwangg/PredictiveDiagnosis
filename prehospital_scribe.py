@@ -21,87 +21,215 @@ PROCEDURE_FIELDS = {
     "route", "gcs", "pain",
 }
 CHECKBOX_FIELDS = {
+    "pickup_same_as_mailing",
     "allergies_nka", "allergies_cno", "allergies_other",
-    "history_previously_healthy", "history_cardiac", "history_respiratory",
-    "history_seizure", "history_diabetes", "history_psychiatric",
+    "history_previously_healthy", "history_cardiac",
+    "history_respiratory", "history_seizure", "history_diabetes", "history_psychiatric",
     "history_anaphylaxis", "history_cancer", "history_stroke_tia",
     "history_hypertension", "history_other", "history_cno",
     "meds_nitrates", "meds_asa", "meds_salbutamol", "meds_furosemide",
     "meds_insulin_oral_diabetic", "meds_pde_inhibitors", "meds_other",
-    "meds_none", "meds_cno", "blood_thinners", "skin_colour_flushed",
+    "meds_none", "meds_cno",
+    "tpa_none", "tpa_midwife", "tpa_efrt", "tpa_other_paramedic", "tpa_nurse",
+    "tpa_physician", "tpa_bystander", "tpa_self", "tpa_fire", "tpa_police",
+    "tpa_other", "tpa_cno",
+    "blood_thinners", "skin_colour_flushed",
     "skin_colour_pale", "skin_colour_cyanosis", "skin_colour_jaundice",
     "skin_colour_unremarkable", "skin_condition_dry", "skin_condition_clammy",
     "skin_condition_diaphoretic", "skin_condition_unremarkable",
     "air_entry_bilateral", "air_entry_decreased_r", "air_entry_decreased_l",
-    "breath_clear", "breath_wheezes", "breath_crackles", "breath_rub",
-    "breath_absent", "abdomen_soft", "abdomen_rigid", "abdomen_distended",
+    "breath_clear", "breath_wheezes", "breath_crackles", "breath_rub","breath_absent",
+    "abdomen_soft", "abdomen_rigid", "abdomen_distended",
     "abdomen_tender", "abdomen_mass", "abdomen_pulsatile", "abdomen_ru",
     "abdomen_lu", "abdomen_ll", "abdomen_rl", "abdomen_center",
     "back_pelvis_unremarkable", "extremities_unremarkable",
+    "positive_frei", "no_charge", "billing_basic_fee",
+    "deceased_obviously_dead", "deceased_dnr", "deceased_bhp_tor",
+    "deceased_pronounced_by_physician", "toc_receiving_staff", "toc_family",
+    "toc_other",
 }
 ACR_SCALAR_FIELDS = {
-    "first_name", "last_name", "age", "sex", "mail_street_no", "mail_street_name",
-    "mail_city", "mail_province", "mail_postal_code", "pickup_location",
+    "hospital_reg_no", "service_name", "service_no", "cacc_call_no",
+    "weight_kg", "dob", "health_insurance_no", "hin_version",
+    "first_name", "last_name", "age", "sex",
+    "mail_street_no", "mail_street_name", "mail_city", "mail_province",
+    "mail_postal_code", "mail_country", "pickup_location", "pickup_code",
     "call_date", "ev_call_received", "occurrence_date",
     "occurrence_time", "chief_complaint", "incident_history", "remarks",
     "allergies_details", "history_details", "medications_details",
-    "general_appearance", "peripheral_edema", "pedal_pulse", "primary_problem",
-    "problem_code",
+    "tpa_details", "dnr_confirmation_no", "trauma1_location", "trauma1_type",
+    "trauma1_mechanism", "trauma2_location", "trauma2_type", "trauma2_mechanism",
+    "trauma3_location", "trauma3_type", "trauma3_mechanism",
+    "arrest_witnessed_by", "arrest_witnessed_date", "arrest_witnessed_time",
+    "cpr_started_by", "cpr_started_date", "cpr_started_time",
+    "first_shock_by", "first_shock_date", "first_shock_time",
+    "general_appearance", "peripheral_edema", "pedal_pulse", "trachea_shifted",
+    "jvd", "provided_by", "provided_by_other",
+    "ambulance_use", "hospital_disposition", "charge_to", "welfare_charge",
+    "billed_by", "dnd_rcmp_no", "social_insurance_no", "billing_registration_no",
+    "billing_hospital_code", "billing_initials", "patients_portion",
+    "charge_km_over_40", "amount_billed", "other_charge", "billing_signature",
+    "payment_received",
+    "para1_no", "para1_designation", "para1_name", "para1_signature",
+    "para2_no", "para2_designation", "para2_name", "para2_signature",
+    "other3_no", "other3_designation", "other3_name", "other3_signature",
+    "other4_no", "other4_designation", "other4_name", "other4_signature",
+    "vehicle_no", "station", "status", "hospital_no", "receiving_facility",
+    "utm_code", "dispatch", "return_priority", "patient_sequence",
+    "base_hospital_name", "base_hospital_physician", "patch_log_no",
+    "ev_crew_notified", "ev_crew_mobile", "ev_arrive_scene", "ev_patient_contact",
+    "ev_depart_scene", "ev_arrive_destination", "acr_completion_date",
+    "acr_completion_time",
+    "primary_problem", "problem_code", "sp_trans_code", "base_hospital_number",
+    "disposition_of_effects", "deceased_physician_name", "ctas_arrive_patient",
+    "ctas_depart_scene", "ctas_arrive_destination", "warning_to_scene",
+    "warning_to_destination", "toc_date", "toc_time", "toc_other_text",
 }
 ACR_FIELDS = ACR_SCALAR_FIELDS | CHECKBOX_FIELDS
 
+ACR_SECTION_FIELDS = {
+    "demographics": frozenset({
+        "hospital_reg_no", "service_name", "service_no", "cacc_call_no", "call_date",
+        "last_name", "first_name", "age", "sex", "weight_kg", "dob",
+        "health_insurance_no", "hin_version", "mail_street_no", "mail_street_name",
+        "mail_city", "mail_province", "mail_postal_code", "mail_country",
+        "pickup_location", "pickup_same_as_mailing", "pickup_code",
+    }),
+    "clinical-information": frozenset({
+        "occurrence_date", "occurrence_time", "chief_complaint", "dnr_confirmation_no",
+        "trauma1_location", "trauma1_type", "trauma1_mechanism",
+        "trauma2_location", "trauma2_type", "trauma2_mechanism",
+        "trauma3_location", "trauma3_type", "trauma3_mechanism", "incident_history",
+        "meds_nitrates", "meds_asa", "meds_salbutamol", "meds_furosemide",
+        "meds_insulin_oral_diabetic", "meds_pde_inhibitors", "meds_other",
+        "meds_none", "meds_cno", "medications_details",
+        "history_previously_healthy", "history_cardiac", "history_respiratory",
+        "history_seizure", "history_diabetes", "history_psychiatric",
+        "history_anaphylaxis", "history_cancer", "history_stroke_tia",
+        "history_hypertension", "history_other", "history_cno", "history_details",
+        "allergies_nka", "allergies_cno", "allergies_other", "allergies_details",
+        "tpa_none", "tpa_midwife", "tpa_efrt", "tpa_other_paramedic", "tpa_nurse",
+        "tpa_physician", "tpa_bystander", "tpa_self", "tpa_fire", "tpa_police",
+        "tpa_other", "tpa_cno", "tpa_details",
+    }),
+    "cardiac-arrest-information": frozenset({
+        "arrest_witnessed_by", "arrest_witnessed_date", "arrest_witnessed_time",
+        "cpr_started_by", "cpr_started_date", "cpr_started_time", "first_shock_by",
+        "first_shock_date", "first_shock_time",
+    }),
+    "physical-exam": frozenset({
+        "general_appearance", "blood_thinners", "skin_colour_flushed",
+        "skin_colour_pale", "skin_colour_cyanosis", "skin_colour_jaundice",
+        "skin_colour_unremarkable", "skin_condition_dry", "skin_condition_clammy",
+        "skin_condition_diaphoretic", "skin_condition_unremarkable", "trachea_shifted",
+        "jvd", "air_entry_bilateral", "air_entry_decreased_r", "air_entry_decreased_l",
+        "breath_clear", "breath_wheezes", "breath_crackles", "breath_rub",
+        "breath_absent", "abdomen_soft", "abdomen_rigid", "abdomen_distended",
+        "abdomen_tender", "abdomen_mass", "abdomen_pulsatile", "abdomen_ru",
+        "abdomen_lu", "abdomen_ll", "abdomen_rl", "abdomen_center",
+        "back_pelvis_unremarkable", "extremities_unremarkable", "peripheral_edema",
+        "pedal_pulse", "positive_frei", "provided_by", "provided_by_other",
+    }),
+    "billing-information": frozenset({
+        "ambulance_use", "hospital_disposition", "charge_to", "welfare_charge",
+        "no_charge", "billing_basic_fee", "billed_by", "dnd_rcmp_no",
+        "social_insurance_no", "billing_registration_no", "billing_hospital_code",
+        "billing_initials", "patients_portion", "charge_km_over_40", "amount_billed",
+        "other_charge", "billing_signature", "payment_received",
+    }),
+    "clinical-treatment-procedures": frozenset({"procedures"}),
+    "crew": frozenset({
+        "para1_no", "para1_designation", "para1_name", "para1_signature",
+        "para2_no", "para2_designation", "para2_name", "para2_signature",
+        "other3_no", "other3_designation", "other3_name", "other3_signature",
+        "other4_no", "other4_designation", "other4_name", "other4_signature",
+    }),
+    "general-administration": frozenset({
+        "vehicle_no", "station", "status", "hospital_no", "receiving_facility",
+        "utm_code", "dispatch", "return_priority", "patient_sequence",
+        "base_hospital_name", "base_hospital_physician", "patch_log_no",
+    }),
+    "call-events": frozenset({
+        "ev_call_received", "ev_crew_notified", "ev_crew_mobile", "ev_arrive_scene",
+        "ev_patient_contact", "ev_depart_scene", "ev_arrive_destination",
+        "acr_completion_date", "acr_completion_time",
+    }),
+    "remarks-disposition": frozenset({
+        "remarks", "primary_problem", "problem_code", "sp_trans_code",
+        "base_hospital_number", "disposition_of_effects", "deceased_obviously_dead",
+        "deceased_dnr", "deceased_bhp_tor", "deceased_pronounced_by_physician",
+        "deceased_physician_name", "ctas_arrive_patient", "ctas_depart_scene",
+        "ctas_arrive_destination", "warning_to_scene", "warning_to_destination",
+        "toc_date", "toc_time", "toc_receiving_staff", "toc_family", "toc_other",
+        "toc_other_text",
+    }),
+}
 
-def _build_extraction_prompt(raw_transcript: str) -> str:
-    scalar_fields = ", ".join(sorted(ACR_SCALAR_FIELDS))
-    checkbox_fields = ", ".join(sorted(CHECKBOX_FIELDS))
+
+def _build_extraction_prompt(raw_transcript: str, fields=None) -> str:
+    fields = ACR_FIELDS | {"procedures"} if fields is None else set(fields)
+    scalar_fields = ", ".join(sorted(fields & ACR_SCALAR_FIELDS))
+    checkbox_fields = ", ".join(sorted(fields & CHECKBOX_FIELDS))
     procedure_fields = ", ".join(sorted(PROCEDURE_FIELDS))
-    return f"""
+    parts = [f"""
 You extract only facts explicitly stated in a paramedic's prehospital report.
 Return one object using the exact field names in the supplied JSON schema. Include
 every required field. Use an empty string for unavailable text fields, false for
-checkboxes that are not explicitly supported, and an empty list when there are no
-documented procedures. Never guess, infer a negative clinical finding, or add prose.
-
-Scalar form fields: {scalar_fields}.
-Checkbox fields: {checkbox_fields}. Checkbox values must be JSON booleans (true or false).
-For peripheral_edema and pedal_pulse, use the exact radio choice "absent" or "present".
-The procedures field is a list of rows using only these procedure columns:
+Never guess, infer a negative clinical finding, or add prose.
+"""]
+    if scalar_fields:
+        parts.append(f"Scalar form fields: {scalar_fields}.")
+    if checkbox_fields:
+        parts.append(
+            f"Checkbox fields: {checkbox_fields}. Checkbox values must be JSON booleans "
+            "(true or false)."
+        )
+    if "peripheral_edema" in fields or "pedal_pulse" in fields:
+        parts.append(
+            'For peripheral_edema and pedal_pulse, use the exact radio choice "absent" '
+            'or "present".'
+        )
+    if "procedures" in fields:
+        parts.append(
+            f"""The procedures field is a list of rows using only these procedure columns:
 {procedure_fields}. Each procedure row must include every listed column, using an
-empty string when a value is unavailable. Do not add other fields.
-
-Use ACR date format YYYY-MM-DD and time format HH:MM. Only set a checkbox to true or
-false when the transcript explicitly supports that value; otherwise use false. Use the
-value "M" or "F" for sex when clear, otherwise the stated description. For an administered
-drug, add a procedure row with its medication procedure code when known; use code "700"
+empty string when a value is unavailable. Do not add other fields."""
+        )
+    parts.append("""
+Use ACR date format YYYY-MM-DD and time format HH:MM. Use "M" or "F" for sex only
+when clear, otherwise preserve the stated description. For an administered drug,
+add a procedure row with its medication procedure code when known; use code "700"
 for another drug and put its name in reading. Use code "010" for a row of vital signs
 and "025" for a blood glucose reading. Preserve units in glucose readings and doses.
 For a vitals row, use ACR names (pulse_rate, bp, spo2, gcs, resp_rate). Keep
 incident_history concise, chronological, and factual. Do not create empty procedure
-rows. If nothing can be safely extracted, return empty strings, false values, and an
-empty procedures list as required by the schema.
+rows. If nothing can be safely extracted, return empty values as required by the schema.
 
 Transcript:
-{json.dumps(raw_transcript)}
-"""
+""")
+    parts.append(json.dumps(raw_transcript))
+    return "\n".join(parts)
 
 
-def build_acr_schema() -> dict:
-    """Build the JSON schema Ollama uses to constrain ACR extraction output."""
+def build_acr_schema(fields=None) -> dict:
+    """Build the Ollama schema for all supported fields or a section-specific subset."""
+    fields = ACR_FIELDS | {"procedures"} if fields is None else set(fields)
     properties = {
         field: {"type": "boolean" if field in CHECKBOX_FIELDS else "string"}
-        for field in sorted(ACR_FIELDS)
+        for field in sorted(fields & ACR_FIELDS)
     }
-    properties["procedures"] = {
-        "type": "array",
-        "items": {
-            "type": "object",
-            "properties": {
-                field: {"type": "string"} for field in sorted(PROCEDURE_FIELDS)
+    if "procedures" in fields:
+        properties["procedures"] = {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    field: {"type": "string"} for field in sorted(PROCEDURE_FIELDS)
+                },
+                "required": sorted(PROCEDURE_FIELDS),
+                "additionalProperties": False,
             },
-            "required": sorted(PROCEDURE_FIELDS),
-            "additionalProperties": False,
-        },
-    }
+        }
     return {
         "type": "object",
         "properties": properties,
@@ -119,14 +247,14 @@ _ACR_SYSTEM_PROMPT = (
 )
 
 
-def _chat_with_acr_schema(chat, model: str, prompt: str):
+def _chat_with_acr_schema(chat, model: str, prompt: str, fields=None):
     return chat(
         model=model,
         messages=[
             {"role": "system", "content": _ACR_SYSTEM_PROMPT},
             {"role": "user", "content": prompt},
         ],
-        format=build_acr_schema(),
+        format=build_acr_schema(fields),
         options={"temperature": 0, "num_predict": 2048},
     )
 MEDICATION_NAMES = {}
@@ -177,13 +305,14 @@ def _int_or_none(value):
         return None
 
 
-def _validate_extraction(extraction):
+def _validate_extraction(extraction, fields=None):
     if not isinstance(extraction, dict):
         raise ValueError("Scribe response must be a JSON object.")
     if "call_time" in extraction:
         extraction.setdefault("ev_call_received", extraction["call_time"])
         del extraction["call_time"]
-    unknown = set(extraction) - ACR_FIELDS - {"procedures"}
+    allowed_fields = ACR_FIELDS | {"procedures"} if fields is None else set(fields)
+    unknown = set(extraction) - allowed_fields
     if unknown:
         raise ValueError("Scribe returned unsupported ACR fields: " + ", ".join(sorted(unknown)))
     for key in list(extraction):
@@ -230,14 +359,18 @@ def _validate_extraction(extraction):
 def extract_data_with_llm(
     raw_transcript: str,
     *,
+    section: str | None = None,
     ollama_host: str | None = None,
     ollama_timeout: int | None = None,
 ) -> dict:
-    """Return sparse, flat ACR fields and procedure rows from a voice transcript."""
+    """Extract sparse ACR fields, optionally limiting extraction to one form section."""
     if not raw_transcript.strip():
         raise ValueError("Cannot extract ACR fields from an empty transcript.")
+    if section is not None and section not in ACR_SECTION_FIELDS:
+        raise ValueError(f"Unsupported ACR section: {section}")
 
-    prompt = raw_transcript #_build_extraction_prompt(raw_transcript)
+    fields = ACR_SECTION_FIELDS.get(section) if section is not None else None
+    prompt = _build_extraction_prompt(raw_transcript, fields)
     if ollama_host:
         from ollama import Client
 
@@ -245,11 +378,11 @@ def extract_data_with_llm(
             client = Client(host=ollama_host)
         else:
             client = Client(host=ollama_host, timeout=ollama_timeout)
-        response = _chat_with_acr_schema(client.chat, "qwen2.5:7b", prompt)
+        response = _chat_with_acr_schema(client.chat, "qwen2.5:7b", prompt, fields)
     else:
         from ollama import chat
 
-        response = _chat_with_acr_schema(chat, "llama3:latest", prompt)
+        response = _chat_with_acr_schema(chat, "llama3:latest", prompt, fields)
     content = response.message.content
     print(f"[Ollama formatted ACR fields] {content}", flush=True)
 
@@ -261,7 +394,7 @@ def extract_data_with_llm(
     print("Output generation:", seconds(response.eval_duration))
     print("Input tokens:", response.prompt_eval_count)
     print("Output tokens:", response.eval_count)
-    return _validate_extraction(json.loads(content))
+    return _validate_extraction(json.loads(content), fields)
 
 
 def _record_from_acr(acr: dict, record: Optional[PatientRecord] = None) -> PatientRecord:

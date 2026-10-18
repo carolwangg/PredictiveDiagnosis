@@ -45,6 +45,16 @@ a.new:hover { background: var(--btn-dark); }
 a.new:active { background: #14378f; }
 
 .header-actions { display: flex; align-items: center; justify-self: end; gap: 9px; }
+.voice-command {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  min-height: 44px; padding: 0 16px; border: 1px solid var(--line-dark);
+  border-radius: 999px; background: var(--card); color: var(--brand);
+  font-weight: 700; font-size: 14px; cursor: pointer;
+  transition: background-color .12s, color .12s, border-color .12s;
+}
+.voice-command:hover { background: var(--brand-soft); border-color: var(--brand); }
+.voice-command[data-state="recording"] { background: var(--danger); border-color: var(--danger); color: #fff; }
+.voice-command:disabled { cursor: progress; opacity: .7; }
 .refresh {
   display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border-radius: 50%;
   cursor: pointer; color: var(--brand); background: var(--card); border: 1px solid var(--line);
@@ -187,6 +197,7 @@ dialog .row { display: flex; justify-content: flex-end; gap: 8px; }
 @media (max-width: 760px) {
   .top-inner { grid-template-columns: minmax(0, 1fr) auto; }
   .header-actions { gap: 6px; }
+  .voice-command { min-height: 40px; padding: 0 10px; font-size: 12px; }
   a.new { padding: 10px 14px; font-size: 14px; }
   .refresh { width: 40px; height: 40px; }
   .card { grid-template-columns: 1fr auto auto; grid-template-areas: "inc state go" "addr addr go" "badge when go"; gap: 10px 12px; }
@@ -202,6 +213,8 @@ dialog .row { display: flex; justify-content: flex-end; gap: 8px; }
   .brand h1 { font-size: 14px; }
   .brand p { display: none; }
   .header-actions { gap: 4px; }
+  .voice-command { min-height: 36px; gap: 3px; padding: 0 7px; font-size: 10px; }
+  .voice-command svg { width: 15px; height: 15px; }
   a.new { gap: 4px; padding: 8px 9px; font-size: 12px; }
   a.new svg { width: 18px; height: 18px; }
   .refresh { width: 36px; height: 36px; }

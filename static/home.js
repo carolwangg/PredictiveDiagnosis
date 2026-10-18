@@ -112,6 +112,19 @@
     },
     onError: function (error) { toast('Voice update failed – ' + error.message, true); }
   });
+  ACRAudio.attach($('btn-voice-command'), {
+    url: function () { return cfg.voiceCommandApi; },
+    labels: {
+      idle: 'Record audio',
+      requesting: 'Connecting…',
+      recording: 'Stop recording',
+      processing: 'Transcribing…'
+    },
+    onResult: function (result) {
+      if (result.redirect_url) window.location.assign(result.redirect_url);
+    },
+    onError: function (error) { toast('Audio command failed – ' + error.message, true); }
+  });
   bar.addEventListener('click', function (event) {
     var state = $('act-record').dataset.state;
     if (state && state !== 'idle' && !event.target.closest('#act-record')) {

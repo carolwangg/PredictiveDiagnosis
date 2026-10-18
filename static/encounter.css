@@ -33,8 +33,35 @@
 .btn.record { display: inline-flex; align-items: center; gap: 6px; color: #08714e; border-color: #9dd8c1; }
 .btn.record[data-state="recording"] { color: #fff; background: #c52c3b; border-color: #c52c3b; }
 .btn:disabled { opacity: .55; cursor: progress; }
-.test-text-scribe { display: flex; flex-direction: column; gap: 4px; width: 220px; }
-.test-text-scribe textarea { box-sizing: border-box; width: 100%; min-height: 42px; resize: vertical; font: inherit; font-size: 12px; }
+.test-audio-import { display: flex; }
+body.transcript-open { margin-right: min(440px, 40vw); transition: margin-right .18s ease; }
+.transcript-sidebar {
+  position: fixed; z-index: 30; top: 0; right: 0; bottom: 0;
+  display: flex; flex-direction: column; gap: 10px;
+  box-sizing: border-box; width: min(440px, 40vw); padding: 18px;
+  background: #fff; border-left: 1px solid #d9dde5;
+  box-shadow: -8px 0 28px rgba(15, 27, 45, .16);
+}
+.transcript-sidebar[hidden] { display: none; }
+.transcript-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.transcript-heading h2 { margin: 0; font-size: 18px; }
+.transcript-status { margin: 0; color: #536176; font-size: 13px; }
+.transcript-label { font-size: 12px; font-weight: 700; color: #536176; }
+.transcript-sidebar textarea {
+  box-sizing: border-box; width: 100%; min-height: 120px; flex: 1; resize: vertical;
+  padding: 10px; border: 1px solid #c5cbd6; border-radius: 8px;
+  font: inherit; font-size: 14px; line-height: 1.5;
+}
+.transcript-review {
+  max-height: 32vh; overflow: auto; padding: 10px; border-radius: 8px;
+  background: #f4f6fa; white-space: pre-wrap; overflow-wrap: anywhere;
+  font-size: 13px; line-height: 1.5;
+}
+.transcript-review:empty { display: none; }
+.transcript-review mark { background: #ffe59a; color: #573c00; border-radius: 3px; cursor: pointer; }
+.transcript-review mark:hover { background: #ffd45e; }
+.transcript-note { margin: 0; color: #6b7a90; font-size: 11px; }
+.transcript-close { flex: none; }
 
 .alerts {
   width: min(1100px, 100% - 24px); margin: 12px auto -4px; padding: 10px 14px;
@@ -51,10 +78,16 @@
   .appbar { flex-wrap: wrap; gap: 8px; }
   .appbar .who { order: 3; width: 100%; }
   .save-state { display: none; }
+  body.transcript-open { margin-right: 8px; }
+  .transcript-sidebar { width: min(440px, 100vw); padding: 14px; }
 }
 @media (prefers-color-scheme: dark) { /* form sheets stay paper-white; only the bar adapts */
   .appbar { background: #141a26; border-color: #2b3445; color: #e7ecf5; }
   .appbar .back { background: #1c2740; color: #8fb0ff; }
+  .transcript-sidebar { background: #141a26; border-color: #2b3445; color: #e7ecf5; }
+  .transcript-review { background: #1c2433; }
+  .transcript-sidebar textarea { background: #1c2433; color: #e7ecf5; border-color: #3a4558; }
+  .transcript-status, .transcript-label, .transcript-note { color: #aab5c7; }
   .btn { background: #1c2433; color: #e7ecf5; border-color: #3a4558; }
   .btn:hover { background: #141a26; }
   .btn.primary { background: #2457d6; border-color: #2457d6; color: #fff; }

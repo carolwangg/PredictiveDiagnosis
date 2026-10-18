@@ -25,7 +25,7 @@ from pathlib import Path
 import tempfile
 
 from dotenv import load_dotenv
-from flask import Flask, abort, jsonify, render_template, request
+from flask import Flask, abort, jsonify, render_template, request, url_for
 from werkzeug.exceptions import HTTPException
 
 from encounter_store import EncounterStore, detail, merged_form, summarize
@@ -101,6 +101,51 @@ def get_or_404(eid):
     return enc
 
 
+def _transcribe_audio_upload(audio, use_remote_whisper=False):
+    if audio is None or not audio.filename:
+        abort(400, "audio recording is required")
+
+    extensions = {
+        "audio/webm": ".webm",
+        "video/webm": ".webm",
+        "audio/ogg": ".ogg",
+        "audio/mp4": ".mp4",
+        "audio/mpeg": ".mp3",
+        "audio/wav": ".wav",
+        "audio/x-wav": ".wav",
+        "audio/x-pn-wav": ".wav",
+        "audio/x-m4a": ".m4a",
+        "audio/m4a": ".m4a",
+    }
+    suffix = extensions.get(audio.mimetype)
+    if suffix is None:
+        suffix = {
+            ".webm": ".webm",
+            ".ogg": ".ogg",
+            ".mp4": ".mp4",
+            ".m4a": ".m4a",
+            ".mp3": ".mp3",
+            ".wav": ".wav",
+        }.get(Path(audio.filename).suffix.lower())
+    if suffix is None:
+        abort(415, "unsupported audio format")
+
+    with tempfile.TemporaryDirectory(prefix="acr_audio_") as temp_dir:
+        audio_path = Path(temp_dir) / ("recording" + suffix)
+        audio.save(audio_path)
+        if audio_path.stat().st_size == 0:
+            abort(400, "audio recording is empty")
+        if use_remote_whisper:
+            try:
+                return transcribe_audio_file_remote(audio_path, REMOTE_MODEL_CONFIG)
+            except RemoteModelError as error:
+                abort(502, str(error))
+
+        from modules.stt import transcribe_audio_file
+
+        return transcribe_audio_file(audio_path)
+
+
 def clean_payload(payload):
     """Flat {field: value} dict; only str/bool/number/None values (plus 'procedures')."""
     if not isinstance(payload, dict):
@@ -144,10 +189,46 @@ def open_report(eid):
     return render_form(prefill=merged_form(enc), encounter=encounter_ctx(enc))
 
 
+def _voice_command_target(transcript, encounters):
+    command = " ".join(transcript.casefold().split()).strip(" \t\r\n.,!?")
+    if command == "new incident":
+        print("voice command: new incident")
+        return url_for("new_report")
+
+    match = re.fullmatch(r"edit incident (?:number )?(\d+(?:,\d{3})*)", command)
+    if not match:
+        return None
+    incident_number = int(match.group(1).replace(",", ""))
+    encounter = next(
+        (
+            item for item in encounters
+            if item.get("incident_no") == incident_number
+        ),
+        None,
+    )
+    if encounter is None:
+        print("voice command: open incident id not recognized")
+        return None
+    print(f"voice command: open incident {encounter["encounter_id"]}")
+    return url_for("open_report", eid=encounter["encounter_id"])
+
+
 # ---------------------------------------------------------------------- API
 @app.get("/api/encounters")
 def api_list():
     return jsonify(encounters=[summarize(e) for e in store.list()])
+
+
+@app.post("/api/voice-command")
+def api_voice_command():
+    """Transcribe a home-page spoken navigation command without invoking the scribe."""
+    transcript = _transcribe_audio_upload(
+        request.files.get("audio"),
+        use_remote_whisper=REMOTE_MODEL_CONFIG is not None,
+    )
+    print(f"voice command: {transcript}")
+    target = _voice_command_target(transcript, store.list())
+    return jsonify(transcript=transcript, redirect_url=target)
 
 
 @app.post("/api/encounters")
@@ -186,6 +267,19 @@ def api_sign(eid):
     return jsonify(detail(enc))
 
 
+@app.post("/api/encounters/<eid>/transcribe")
+def api_transcribe_audio(eid):
+    """Transcribe a live recording snapshot without applying fields to the report."""
+    eid = valid_id(eid)
+    enc = get_or_404(eid)
+    if enc.get("paramedic_signed_off"):
+        abort(409, "reopen this report before recording an update")
+
+    transcript = _transcribe_audio_upload(request.files.get("audio"))
+    print(f"[Live Whisper transcript] {transcript}", flush=True)
+    return jsonify(transcript=transcript)
+
+
 @app.post("/api/encounters/<eid>/audio")
 @app.post("/api/encounters/<eid>/text")
 def api_audio_update(eid):
@@ -207,74 +301,53 @@ def api_audio_update(eid):
         if not isinstance(transcript_value, str) or not transcript_value.strip():
             abort(400, "transcript text is required")
         transcript = transcript_value.strip()
+        section = (payload.get("section") or None) if payload else None
         print(f"[Typed transcript] {transcript}", flush=True)
     else:
-        audio = request.files.get("audio")
-        if audio is None or not audio.filename:
-            abort(400, "audio recording is required")
+        section = request.form.get("section") or None
+        if section is not None:
+            from prehospital_scribe import ACR_SECTION_FIELDS
 
-        extensions = {
-            "audio/webm": ".webm",
-            "video/webm": ".webm",
-            "audio/ogg": ".ogg",
-            "audio/mp4": ".mp4",
-            "audio/mpeg": ".mp3",
-            "audio/wav": ".wav",
-            "audio/x-wav": ".wav",
-            "audio/x-pn-wav": ".wav",
-            "audio/x-m4a": ".m4a",
-            "audio/m4a": ".m4a",
-        }
-        suffix = extensions.get(audio.mimetype)
-        if suffix is None:
-            suffix = {
-                ".webm": ".webm",
-                ".ogg": ".ogg",
-                ".mp4": ".mp4",
-                ".m4a": ".m4a",
-                ".mp3": ".mp3",
-                ".wav": ".wav",
-            }.get(Path(audio.filename).suffix.lower())
-        if suffix is None:
-            abort(415, "unsupported audio format")
-
-        with tempfile.TemporaryDirectory(prefix="acr_audio_") as temp_dir:
-            audio_path = Path(temp_dir) / ("recording" + suffix)
-            audio.save(audio_path)
-            if audio_path.stat().st_size == 0:
-                abort(400, "audio recording is empty")
-            use_remote_whisper = (
-                app.config["TEST_AUDIO_IMPORT"]
-                and request.form.get("source") == "file"
-                and REMOTE_MODEL_CONFIG is not None
-            )
-            if use_remote_whisper:
-                try:
-                    transcript = transcribe_audio_file_remote(
-                        audio_path, REMOTE_MODEL_CONFIG
-                    )
-                except RemoteModelError as error:
-                    abort(502, str(error))
-            else:
-                from modules.stt import transcribe_audio_file
-
-                transcript = transcribe_audio_file(audio_path)
+            if section not in ACR_SECTION_FIELDS:
+                abort(400, "unsupported ACR section")
+        use_remote_whisper = (
+            app.config["TEST_AUDIO_IMPORT"]
+            and request.form.get("source") == "file"
+            and REMOTE_MODEL_CONFIG is not None
+        )
+        transcript = _transcribe_audio_upload(
+            request.files.get("audio"),
+            use_remote_whisper=use_remote_whisper,
+        )
         print(f"[Whisper transcript] {transcript}", flush=True)
 
+    if section is not None:
+        from prehospital_scribe import ACR_SECTION_FIELDS
+
+        if not isinstance(section, str) or section not in ACR_SECTION_FIELDS:
+            abort(400, "unsupported ACR section")
     if not transcript.strip():
         abort(422, "no speech could be transcribed")
+    if request.path.endswith("/audio") and app.config["TEST_AUDIO_IMPORT"]:
+        response = {"transcript": transcript, "awaiting_review": True}
+        if section:
+            response["section"] = section
+        return jsonify(response)
+
     from ollama import ResponseError
 
     try:
+        extraction_options = {"section": section} if section else {}
         if REMOTE_MODEL_CONFIG is not None:
             with remote_ollama_tunnel(REMOTE_MODEL_CONFIG) as ollama_host:
                 extracted = extract_data_with_llm(
                     transcript,
                     ollama_host=ollama_host,
                     ollama_timeout=REMOTE_MODEL_CONFIG.request_timeout,
+                    **extraction_options,
                 )
         else:
-            extracted = extract_data_with_llm(transcript)
+            extracted = extract_data_with_llm(transcript, **extraction_options)
     except ValueError as error:
         abort(502, f"scribe returned invalid structured data: {error}")
     except RemoteModelError as error:
@@ -295,8 +368,13 @@ def api_audio_update(eid):
         abort(409, str(error))
     if updated is None:
         abort(404, "encounter not found")
-    return jsonify({**detail(updated), "form": merged_form(updated)})
+    return jsonify({
+        **detail(updated),
+        "form": merged_form(updated),
+        "transcript": transcript,
+        **({"section": section} if section else {}),
+    })
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=5000, debug=True)

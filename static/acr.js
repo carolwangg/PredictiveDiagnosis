@@ -17,6 +17,7 @@
  *   ACR.populate({name: value, ...}) -> {set: [...], missing: [...]}
  *   ACR.collect({skipEmpty})         -> {name: value, ...}
  *   ACR.clear()
+ *   ACR.clearSection(container)      -> clears fields in one section
  *   ACR.focus(name)                  -> scrolls to the field and focuses it
  *   ACR.schema()                     -> [{name, type, label}, ...]
  *   ACR.has(name)
@@ -157,6 +158,24 @@
   function clear() {
     fields().forEach(function (f) { f.els.forEach(function (el) { writeEl(f.type, el, ''); }); });
     document.dispatchEvent(new CustomEvent('acr:clear'));
+  }
+
+  function clearSection(container) {
+    var root = typeof container === 'string' ? document.getElementById(container) : container;
+    if (!root) return false;
+    var names = new Set();
+    root.querySelectorAll('[data-field]').forEach(function (el) {
+      names.add(el.dataset.field);
+    });
+    names.forEach(function (name) {
+      var f = fields().get(name);
+      if (!f) return;
+      var value = read(f);
+      if (value === '' || value === false) return;
+      set(name, '', { silent: true });
+      emit(f, 'user');
+    });
+    return true;
   }
 
   function labelOf(f) {
@@ -336,6 +355,7 @@
   global.ACR = {
     version: '1.0',
     has: has, get: get, set: set, populate: populate, collect: collect, clear: clear,
+    clearSection: clearSection,
     focus: focus, schema: schema, onChange: onChange, refresh: build,
     addProcedureRow: addProcedureRow, setProcedures: setProcedures, getProcedures: getProcedures,
     load: load, save: save
@@ -345,6 +365,26 @@
     build();
     var add = document.getElementById('add-proc-row');
     if (add) add.addEventListener('click', addProcedureRow);
+    document.querySelectorAll('.section-toggle[aria-controls]').forEach(function (button) {
+      var content = document.getElementById(button.getAttribute('aria-controls'));
+      var label = button.querySelector('.section-toggle-label');
+      if (!content || !label) return;
+      button.addEventListener('click', function () {
+        var expanded = button.getAttribute('aria-expanded') === 'true';
+        button.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+        label.textContent = expanded ? 'Show' : 'Hide';
+        content.hidden = expanded;
+      });
+    });
+    document.querySelectorAll('[data-clear-section]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        var container = document.getElementById(button.dataset.clearSection);
+        if (!container) return;
+        var title = button.getAttribute('aria-label').replace(/^Clear all data in\s+/i, '');
+        if (!global.confirm('Clear all data in the ' + title + ' section?')) return;
+        clearSection(container);
+      });
+    });
     if (global.ACR_PREFILL) populate(global.ACR_PREFILL);
   });
 })(window);

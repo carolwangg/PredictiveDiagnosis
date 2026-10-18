@@ -8,6 +8,7 @@ from unittest.mock import Mock, patch
 import app
 from prehospital_scribe import (
     ACR_FIELDS,
+    ACR_SECTION_FIELDS,
     ACR_SCALAR_FIELDS,
     CHECKBOX_FIELDS,
     PROCEDURE_FIELDS,
@@ -89,6 +90,50 @@ class ScribeSchemaTests(unittest.TestCase):
 
         self.assertEqual(PROCEDURE_FIELDS, javascript_fields)
         self.assertEqual(PROCEDURE_FIELDS, html_columns)
+
+    def test_every_form_section_has_a_clear_control_for_its_content(self):
+        html = app.app.test_client().get("/encounters/new").get_data(as_text=True)
+        content_ids = re.findall(
+            r'<div class="acr-toggle-content" id="([^"]+)">', html
+        )
+        clear_targets = re.findall(r'data-clear-section="([^"]+)"', html)
+
+        self.assertEqual(clear_targets, content_ids)
+        self.assertEqual(clear_targets.count("clinical-demographics-content"), 1)
+        self.assertEqual(clear_targets.count("billing-demographics-content"), 1)
+
+    def test_section_field_sets_cover_the_acr_schema(self):
+        section_fields = set().union(*ACR_SECTION_FIELDS.values())
+        self.assertEqual(section_fields, ACR_FIELDS | {"procedures"})
+
+        for section, fields in ACR_SECTION_FIELDS.items():
+            with self.subTest(section=section):
+                schema_fields = set(build_acr_schema(fields)["properties"])
+                self.assertEqual(schema_fields, fields)
+                self.assertTrue(fields - {"procedures"} <= ACR_FIELDS)
+
+    def test_encounter_form_renders_a_microphone_for_every_section(self):
+        encounter = {"encounter_id": "test-id", "incident_no": "123"}
+        with (
+            patch.object(app, "get_or_404", return_value=encounter),
+            patch.object(app, "merged_form", return_value={}),
+        ):
+            response = app.app.test_client().get("/encounters/test-id")
+
+        self.assertEqual(response.status_code, 200)
+        rendered_sections = re.findall(
+            r'data-scribe-section="([^"]+)"',
+            response.get_data(as_text=True),
+        )
+        self.assertEqual(set(rendered_sections), set(ACR_SECTION_FIELDS))
+        self.assertEqual(rendered_sections.count("demographics"), 2)
+
+    def test_section_validation_rejects_fields_from_other_sections(self):
+        with self.assertRaisesRegex(ValueError, "unsupported ACR fields: age"):
+            _validate_extraction(
+                {"chief_complaint": "Chest pain", "age": "44"},
+                fields=ACR_SECTION_FIELDS["clinical-information"],
+            )
 
     def test_prompt_field_lists_are_derived_from_schema_sets(self):
         prompt = _build_extraction_prompt("schema probe")

@@ -307,8 +307,6 @@ class EncounterStore:
             enc = self._find(encs, eid)
             if enc is None:
                 return None
-            if enc.get("paramedic_signed_off"):
-                raise PermissionError("reopen this report before adding a voice update")
 
             acr = merged_form(enc)
             procedures = updates.get("procedures", [])
