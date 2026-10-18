@@ -30,8 +30,8 @@ class ScribeTextInputTests(unittest.TestCase):
                   return_value={"chief_complaint": "chest pain"}) as extract,
         ):
             response = self.client.post(
-                "/api/encounters/test-id/audio",
-                data={"source": "text", "transcript": "Patient reports chest pain."},
+                "/api/encounters/test-id/text",
+                json={"transcript": "Patient reports chest pain."},
             )
 
         self.assertEqual(response.status_code, 200)
@@ -57,11 +57,24 @@ class ScribeTextInputTests(unittest.TestCase):
             patch("prehospital_scribe.extract_data_with_llm") as extract,
         ):
             response = self.client.post(
-                "/api/encounters/test-id/audio",
-                data={"source": "text", "transcript": "Patient reports chest pain."},
+                "/api/encounters/test-id/text",
+                json={"transcript": "Patient reports chest pain."},
             )
 
         self.assertEqual(response.status_code, 403)
+        extract.assert_not_called()
+
+    def test_empty_transcript_is_rejected(self):
+        with (
+            patch.dict(app.app.config, {"TEST_AUDIO_IMPORT": True}),
+            patch("prehospital_scribe.extract_data_with_llm") as extract,
+        ):
+            response = self.client.post(
+                "/api/encounters/test-id/text",
+                json={"transcript": "   "},
+            )
+
+        self.assertEqual(response.status_code, 400)
         extract.assert_not_called()
 
     def test_remote_mode_sends_transcript_to_remote_ollama(self):
@@ -75,8 +88,8 @@ class ScribeTextInputTests(unittest.TestCase):
                   return_value={"chief_complaint": "chest pain"}) as extract,
         ):
             response = self.client.post(
-                "/api/encounters/test-id/audio",
-                data={"source": "text", "transcript": "Patient reports chest pain."},
+                "/api/encounters/test-id/text",
+                json={"transcript": "Patient reports chest pain."},
             )
 
         self.assertEqual(response.status_code, 200)
@@ -99,8 +112,8 @@ class ScribeTextInputTests(unittest.TestCase):
             ),
         ):
             response = self.client.post(
-                "/api/encounters/test-id/audio",
-                data={"source": "text", "transcript": "Patient reports chest pain."},
+                "/api/encounters/test-id/text",
+                json={"transcript": "Patient reports chest pain."},
             )
 
         self.assertEqual(response.status_code, 200)

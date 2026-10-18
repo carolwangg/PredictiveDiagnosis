@@ -206,23 +206,17 @@
         saveBtn.disabled = true;
         signBtn.disabled = true;
         setState('Sending text to scribe…');
-        var body = new FormData();
-        body.append('source', 'text');
-        body.append('transcript', transcript);
-        return fetch(meta.api + '/' + encodeURIComponent(meta.id) + '/audio', {
-          method: 'POST',
-          headers: { Accept: 'application/json' },
-          body: body
-        }).then(function (response) {
-          return response.json().catch(function () { return {}; }).then(function (result) {
-            if (!response.ok) throw new Error(result.error || ('HTTP ' + response.status));
-            ACR.clear();
-            ACR.populate(result.form || {});
-            applyResult(result);
-            dirty = false;
-            $('scribe-text').value = '';
-            setState('Text processed by scribe');
-          });
+        return api(
+          'POST',
+          meta.api + '/' + encodeURIComponent(meta.id) + '/text',
+          { transcript: transcript }
+        ).then(function (result) {
+          ACR.clear();
+          ACR.populate(result.form || {});
+          applyResult(result);
+          dirty = false;
+          $('scribe-text').value = '';
+          setState('Text processed by scribe');
         });
       }).catch(function (error) {
         setState('Text scribe failed – ' + error.message, 'err');

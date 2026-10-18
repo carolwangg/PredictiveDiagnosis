@@ -328,6 +328,14 @@
           "spo2": 94,
           "gcs": 15,
           "blood_glucose": null
+        },
+        {
+          "timestamp": "14:42",
+          "bp": "140/90",
+          "hr": null,
+          "spo2": 94,
+          "gcs": 15,
+          "blood_glucose": null
         }
       ],
       "protocol_triggers": [
@@ -346,7 +354,7 @@
       "paramedic_signed_off": false,
       "incident_no": 441370,
       "created_at": "2026-10-17T14:35:00",
-      "updated_at": "2026-10-18T02:20:51-04:00",
+      "updated_at": "2026-10-18T02:28:39-04:00",
       "acr": {
         "chief_complaint": "acute question chest pain radiating to the left arm onset 20 minutes ago",
         "incident_history": "Acute chest pain, onset about 20 minutes prior to call.",
@@ -400,6 +408,24 @@
             "spo2": "",
             "temp": "",
             "time": "1442"
+          },
+          {
+            "bp": "140/90",
+            "crew": "",
+            "dose": "116",
+            "gcs": "15",
+            "pain": "",
+            "procedure": "administered",
+            "pulse_rate": "",
+            "pupil_l": "",
+            "pupil_r": "",
+            "reading": "",
+            "resp_rate": "",
+            "result_code": "",
+            "route": "orally",
+            "spo2": "94",
+            "temp": "",
+            "time": "1442"
           }
         ],
         "service_name": "Example EMS",
@@ -419,7 +445,7 @@
         "mail_postal_code": "M0A 0A1",
         "pickup_code": "R",
         "history_cardiac": true,
-        "primary_problem": "acute question chest pain radiating to the left arm onset 20 minutes ago",
+        "primary_problem": "chest pain",
         "problem_code": "51",
         "air_entry_bilateral": true,
         "back_pelvis_unremarkable": true,

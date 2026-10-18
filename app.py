@@ -16,7 +16,8 @@ JSON API  (all data lives in ems_encounters.json, see encounter_store.py)
   PUT    /api/encounters/<id>            replace the saved form; re-runs the scribe rule engine
   DELETE /api/encounters/<id>            remove
   POST   /api/encounters/<id>/sign       {"signed": true|false}  -> paramedic_signed_off
-  POST   /api/encounters/<id>/audio      audio or test-mode transcript -> extracted ACR field updates
+  POST   /api/encounters/<id>/audio      audio -> transcribed ACR field updates
+  POST   /api/encounters/<id>/text       test-mode transcript -> extracted ACR field updates
 """
 import os
 import re
@@ -186,8 +187,9 @@ def api_sign(eid):
 
 
 @app.post("/api/encounters/<eid>/audio")
+@app.post("/api/encounters/<eid>/text")
 def api_audio_update(eid):
-    """Transcribe audio or process a test transcript, then apply extracted ACR fields."""
+    """Process audio or test-mode text directly, then apply extracted ACR fields."""
     eid = valid_id(eid)
     enc = get_or_404(eid)
     if enc.get("paramedic_signed_off"):
@@ -195,12 +197,16 @@ def api_audio_update(eid):
 
     from prehospital_scribe import extract_data_with_llm
 
-    if request.form.get("source") == "text":
+    if request.path.endswith("/text") or request.form.get("source") == "text":
         if not app.config["TEST_AUDIO_IMPORT"]:
             abort(403, "typed transcript input is available only in test mode")
-        transcript = request.form.get("transcript", "").strip()
-        if not transcript:
+        payload = request.get_json(silent=True) if request.is_json else request.form
+        if request.is_json and not isinstance(payload, dict):
             abort(400, "transcript text is required")
+        transcript_value = payload.get("transcript", "") if payload else ""
+        if not isinstance(transcript_value, str) or not transcript_value.strip():
+            abort(400, "transcript text is required")
+        transcript = transcript_value.strip()
         print(f"[Typed transcript] {transcript}", flush=True)
     else:
         audio = request.files.get("audio")
