@@ -39,30 +39,50 @@ CHECKBOX_FIELDS = {
     "abdomen_lu", "abdomen_ll", "abdomen_rl", "abdomen_center",
     "back_pelvis_unremarkable", "extremities_unremarkable",
 }
-ACR_FIELDS = {
+ACR_SCALAR_FIELDS = {
     "first_name", "last_name", "age", "sex", "mail_street_no", "mail_street_name",
     "mail_city", "mail_province", "mail_postal_code", "pickup_location",
-    "call_date", "occurrence_date",
+    "call_date", "ev_call_received", "occurrence_date",
     "occurrence_time", "chief_complaint", "incident_history", "remarks",
-    "allergies_nka", "allergies_cno", "allergies_other", "allergies_details",
-    "history_previously_healthy", "history_cardiac", "history_respiratory",
-    "history_seizure", "history_diabetes", "history_psychiatric",
-    "history_anaphylaxis", "history_cancer", "history_stroke_tia",
-    "history_hypertension", "history_other", "history_cno", "history_details",
-    "meds_nitrates", "meds_asa", "meds_salbutamol", "meds_furosemide",
-    "meds_insulin_oral_diabetic", "meds_pde_inhibitors", "meds_other",
-    "meds_none", "meds_cno", "medications_details", "general_appearance",
-    "blood_thinners", "skin_colour_flushed", "skin_colour_pale",
-    "skin_colour_cyanosis", "skin_colour_jaundice", "skin_colour_unremarkable",
-    "skin_condition_dry", "skin_condition_clammy", "skin_condition_diaphoretic",
-    "skin_condition_unremarkable", "air_entry_bilateral", "air_entry_decreased_r",
-    "air_entry_decreased_l", "breath_clear", "breath_wheezes", "breath_crackles",
-    "breath_rub", "breath_absent", "abdomen_soft", "abdomen_rigid",
-    "abdomen_distended", "abdomen_tender", "abdomen_mass", "abdomen_pulsatile",
-    "abdomen_ru", "abdomen_lu", "abdomen_ll", "abdomen_rl", "abdomen_center",
-    "back_pelvis_unremarkable", "extremities_unremarkable", "peripheral_edema",
-    "pedal_pulse", "primary_problem", "problem_code",
+    "allergies_details", "history_details", "medications_details",
+    "general_appearance", "peripheral_edema", "pedal_pulse", "primary_problem",
+    "problem_code",
 }
+ACR_FIELDS = ACR_SCALAR_FIELDS | CHECKBOX_FIELDS
+
+
+def _build_extraction_prompt(raw_transcript: str) -> str:
+    scalar_fields = ", ".join(sorted(ACR_SCALAR_FIELDS))
+    checkbox_fields = ", ".join(sorted(CHECKBOX_FIELDS))
+    procedure_fields = ", ".join(sorted(PROCEDURE_FIELDS))
+    return f"""
+You extract only facts explicitly stated in a paramedic's prehospital report.
+Return one valid JSON object using the exact flat field names used by the Ambulance
+Call Report (ACR) web form. Do not add a wrapper object or explanatory prose.
+Only include fields supported by this transcript. Omit unknown or unstated fields;
+never guess, infer a negative finding, or overwrite a value by returning an empty value.
+
+Scalar form fields: {scalar_fields}.
+Checkbox fields: {checkbox_fields}. Checkbox values must be JSON booleans (true or false).
+For peripheral_edema and pedal_pulse, use the exact radio choice "absent" or "present".
+Do not return other form fields that are not listed above.
+
+The procedures field is a list of rows using only these procedure columns:
+{procedure_fields}.
+
+Use ACR date format YYYY-MM-DD and time format HH:MM. Only set a checkbox to true or
+false when the transcript explicitly supports that value; otherwise omit it. Use the
+value "M" or "F" for sex when clear, otherwise the stated description. For an administered
+drug, add a procedure row with its medication procedure code when known; use code "700"
+for another drug and put its name in reading. Use code "010" for a row of vital signs
+and "025" for a blood glucose reading. Preserve units in glucose readings and doses.
+For a vitals row, use ACR names (pulse_rate, bp, spo2, gcs, resp_rate). Keep
+incident_history concise, chronological, and factual. Do not create empty procedure
+rows. If any fields gives an empty string, omit it. If nothing can be safely extracted, return {{}}.
+
+Transcript:
+{json.dumps(raw_transcript)}
+"""
 MEDICATION_NAMES = {}
 for section_title, section_lines in REFERENCE:
     if section_title == "Medications":
@@ -114,6 +134,9 @@ def _int_or_none(value):
 def _validate_extraction(extraction):
     if not isinstance(extraction, dict):
         raise ValueError("Scribe response must be a JSON object.")
+    if "call_time" in extraction:
+        extraction.setdefault("ev_call_received", extraction["call_time"])
+        del extraction["call_time"]
     unknown = set(extraction) - ACR_FIELDS - {"procedures"}
     if unknown:
         raise ValueError("Scribe returned unsupported ACR fields: " + ", ".join(sorted(unknown)))
@@ -148,65 +171,46 @@ def _validate_extraction(extraction):
     return extraction
 
 
-def extract_data_with_llm(raw_transcript: str) -> dict:
+def extract_data_with_llm(
+    raw_transcript: str,
+    *,
+    ollama_host: str | None = None,
+    ollama_timeout: int | None = None,
+) -> dict:
     """Return sparse, flat ACR fields and procedure rows from a voice transcript."""
     if not raw_transcript.strip():
         raise ValueError("Cannot extract ACR fields from an empty transcript.")
 
-    prompt = f"""
-You extract only facts explicitly stated in a paramedic's prehospital report.
-Return one valid JSON object using the exact flat field names used by the Ambulance
-Call Report (ACR) web form. Do not add a wrapper object or explanatory prose.
-Only include fields supported by this transcript. Omit unknown or unstated fields;
-never guess, infer a negative finding, or overwrite a value by returning an empty value.
+    prompt = _build_extraction_prompt(raw_transcript)
+    if ollama_host:
+        from ollama import Client
 
-The available form fields are:
-demographics: first_name, last_name, age, sex, mail_street_no, mail_street_name,
-mail_city, mail_province, mail_postal_code, pickup_location, call_date, occurrence_date,
-occurrence_time;
-clinical: chief_complaint, incident_history, remarks, primary_problem, problem_code;
-allergies: allergies_nka, allergies_cno, allergies_other, allergies_details;
-medical history: history_previously_healthy, history_cardiac, history_respiratory,
-history_seizure, history_diabetes, history_psychiatric, history_anaphylaxis,
-history_cancer, history_stroke_tia, history_hypertension, history_other,
-history_cno, history_details;
-medication checkboxes: meds_nitrates, meds_asa, meds_salbutamol, meds_furosemide,
-meds_insulin_oral_diabetic, meds_pde_inhibitors, meds_other, meds_none, meds_cno,
-medications_details;
-exam: general_appearance, blood_thinners, skin_colour_flushed, skin_colour_pale,
-skin_colour_cyanosis, skin_colour_jaundice, skin_colour_unremarkable,
-skin_condition_dry, skin_condition_clammy, skin_condition_diaphoretic,
-skin_condition_unremarkable, air_entry_bilateral, air_entry_decreased_r,
-air_entry_decreased_l, breath_clear, breath_wheezes, breath_crackles, breath_rub,
-breath_absent, abdomen_soft, abdomen_rigid, abdomen_distended, abdomen_tender,
-abdomen_mass, abdomen_pulsatile, abdomen_ru, abdomen_lu, abdomen_ll, abdomen_rl,
-abdomen_center, back_pelvis_unremarkable, extremities_unremarkable,
-peripheral_edema, pedal_pulse;
-and procedures: procedures, a list of rows with only these keys:
-time, procedure, crew, reading, result_code, resp_rate, pulse_rate, bp, temp,
-spo2, pupil_r, pupil_l, dose, route, gcs, pain.
+        if ollama_timeout is None:
+            client = Client(host=ollama_host)
+        else:
+            client = Client(host=ollama_host, timeout=ollama_timeout)
+        response = client.chat(
+            model="llama3:latest",
+            messages=[{"role": "user", "content": prompt}],
+            format="json",
+        )
+    else:
+        from ollama import chat
 
-Use ACR date format YYYY-MM-DD and time format HH:MM. ACR checkboxes must be
-true only when the transcript explicitly supports them. Use the value "M" or "F"
-for sex when clear, otherwise the stated description. For an administered drug,
-add a procedure row with its medication procedure code when known; use code "700"
-for another drug and put its name in reading. Use code "010" for a row of vital
-signs and "025" for a blood glucose reading. Preserve units in glucose readings
-and doses. For a vitals row, use ACR names (pulse_rate, bp, spo2, gcs, resp_rate).
-Keep incident_history concise, chronological, and factual. Do not create empty
-procedure rows. If nothing can be safely extracted, return {{}}.
-
-Transcript:
-{json.dumps(raw_transcript)}
-"""
-    from ollama import chat
-
-    response = chat(
-        model="llama3:latest",
-        messages=[{"role": "user", "content": prompt}],
-        format="json",
-    )
+        response = chat(
+            model="llama3:latest",
+            messages=[{"role": "user", "content": prompt}],
+            format="json",
+        )
     content = response["message"]["content"]
+    print(f"[Ollama formatted ACR fields] {content}", flush=True)
+    def seconds(ns):
+        return round(ns / 1_000_000_000, 3)
+    print("Model load:", seconds(response["load_duration"]))
+    print("Input processing:", seconds(response["prompt_eval_duration"]))
+    print("Output generation:", seconds(response["eval_duration"]))
+    print("Input tokens:", response["prompt_eval_count"])
+    print("Output tokens:", response["eval_count"])
     return _validate_extraction(json.loads(content))
 
 

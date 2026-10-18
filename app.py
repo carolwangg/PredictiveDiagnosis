@@ -28,6 +28,12 @@ from flask import Flask, abort, jsonify, render_template, request
 from werkzeug.exceptions import HTTPException
 
 from encounter_store import EncounterStore, detail, merged_form, summarize
+from modules.remote_models import (
+    RemoteModelConfig,
+    RemoteModelError,
+    remote_ollama_tunnel,
+    transcribe_audio_file_remote,
+)
 
 BASE = Path(__file__).resolve().parent
 load_dotenv(BASE / ".env")
@@ -39,11 +45,17 @@ app.config["MAX_CONTENT_LENGTH"] = 25 * 1024 * 1024
 app.config["TEST_AUDIO_IMPORT"] = os.getenv("TEST", "").strip().lower() in {
     "1", "true", "yes", "on"
 }
+app.config["REMOTE_MODELS"] = os.getenv("REMOTE", "").strip().lower() in {
+    "1", "true", "yes", "on"
+}
 app.jinja_env.trim_blocks = True
 app.jinja_env.lstrip_blocks = True
 
 store = EncounterStore(DATA_FILE)
 ID_RE = re.compile(r"[A-Za-z0-9_-]{1,64}")
+REMOTE_MODEL_CONFIG: RemoteModelConfig | None = None
+if app.config["REMOTE_MODELS"]:
+    REMOTE_MODEL_CONFIG = RemoteModelConfig.from_environment()
 
 
 # ------------------------------------------------------------------ helpers
@@ -211,23 +223,50 @@ def api_audio_update(eid):
         abort(415, "unsupported audio format")
 
     from prehospital_scribe import extract_data_with_llm
-    from modules.stt import transcribe_audio_file
 
     with tempfile.TemporaryDirectory(prefix="acr_audio_") as temp_dir:
         audio_path = Path(temp_dir) / ("recording" + suffix)
         audio.save(audio_path)
         if audio_path.stat().st_size == 0:
             abort(400, "audio recording is empty")
-        transcript = transcribe_audio_file(audio_path)
+        use_remote_whisper = (
+            app.config["TEST_AUDIO_IMPORT"]
+            and request.form.get("source") == "file"
+            and REMOTE_MODEL_CONFIG is not None
+        )
+        if use_remote_whisper:
+            try:
+                transcript = transcribe_audio_file_remote(
+                    audio_path, REMOTE_MODEL_CONFIG
+                )
+            except RemoteModelError as error:
+                abort(502, str(error))
+        else:
+            from modules.stt import transcribe_audio_file
+
+            transcript = transcribe_audio_file(audio_path)
     print(f"[Whisper transcript] {transcript}", flush=True)
 
     if not transcript.strip():
         abort(422, "no speech could be transcribed")
+    from ollama import ResponseError
+
     try:
-        extracted = extract_data_with_llm(transcript)
+        if REMOTE_MODEL_CONFIG is not None:
+            with remote_ollama_tunnel(REMOTE_MODEL_CONFIG) as ollama_host:
+                extracted = extract_data_with_llm(
+                    transcript,
+                    ollama_host=ollama_host,
+                    ollama_timeout=REMOTE_MODEL_CONFIG.request_timeout,
+                )
+        else:
+            extracted = extract_data_with_llm(transcript)
     except ValueError as error:
         abort(502, f"scribe returned invalid structured data: {error}")
-    print(f"[Ollama formatted ACR fields] {extracted}", flush=True)
+    except RemoteModelError as error:
+        abort(502, str(error))
+    except (ConnectionError, ResponseError) as error:
+        abort(502, f"Ollama request failed: {error}")
     updates = {key: value for key, value in extracted.items()
                if key == "procedures" or value not in (None, "", False, [])}
     if not updates:

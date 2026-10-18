@@ -149,6 +149,7 @@
         setState('Processing uploaded audio…');
         var body = new FormData();
         body.append('audio', file, file.name);
+        body.append('source', 'file');
         return fetch(meta.api + '/' + encodeURIComponent(meta.id) + '/audio', {
           method: 'POST',
           headers: { Accept: 'application/json' },

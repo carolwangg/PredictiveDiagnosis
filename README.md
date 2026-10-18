@@ -1,6 +1,6 @@
 # Ambulance Call Report – home page + editable form
 
-    pip install flask python-dotenv pydantic ollama numpy faster-whisper sounddevice
+    pip install flask python-dotenv pydantic ollama numpy faster-whisper sounddevice requests
     # Optional: set TEST=True in .env to show Upload audio on incident pages.
     ollama pull llama3:latest
     python app.py                 # http://127.0.0.1:5000/
@@ -20,12 +20,33 @@
 
 The web microphone is controlled by the browser, so the app must be served from localhost or another
 secure context and microphone permission must be granted. Stop recording to automatically transcribe
-with faster-whisper, extract sparse ACR form fields with local Ollama (`llama3:latest`), and merge
-those fields into the selected incident without clearing existing form data. Audio is uploaded only to
-this app, held temporarily for transcription, and then discarded. The standalone `python prehospital_scribe.py`
-workflow remains interactive in the terminal.
+with faster-whisper, extract sparse ACR form fields with Ollama (`llama3:latest`), and merge those
+fields into the selected incident without clearing existing form data. Audio is uploaded only to this
+app, held temporarily for transcription, and then discarded. The standalone `python prehospital_scribe.py`
+workflow remains interactive in the terminal and uses local Ollama.
 With `TEST=True` in `.env`, incident pages also show **Upload audio** so a local audio recording can
 be sent through the same transcription and extraction flow. Restart the app after changing `.env`.
+
+Set `REMOTE=True` in `.env` to route Ollama requests through an SSH tunnel. When both `REMOTE=True`
+and `TEST=True`, audio selected with **Upload audio** is transcribed by the Vultr VM's Faster-Whisper
+API through an SSH tunnel. Live microphone recordings continue to use local Whisper. For example:
+
+```dotenv
+REMOTE=True
+REMOTE_SSH_HOST=your-user@your-vultr-host
+# REMOTE_SSH_KEY=C:\Users\you\.ssh\id_ed25519
+```
+
+Configure `REMOTE_SSH_HOST` as `user@host` (and optionally `REMOTE_SSH_PORT`, `REMOTE_SSH_KEY`);
+the VM's Faster-Whisper API must listen on port 8000 and provide `POST /transcribe` with a multipart
+`file` field and a JSON response containing `text`. Override its VM-side listen address with
+`REMOTE_WHISPER_HOST` if needed (default `127.0.0.1:8000`). Remote Ollama must be listening on the
+VM at `REMOTE_OLLAMA_HOST` (default `127.0.0.1:11434`) with `llama3:latest` pulled. The remote
+model request timeout defaults to 600 seconds (`REMOTE_MODEL_TIMEOUT`). Before starting the app,
+connect once with `ssh user@host` to verify and add the VM's host key; app requests use noninteractive
+SSH authentication. Leave `REMOTE` unset or false to use the existing local Whisper and Ollama models.
+SSH keys should be configured through your local SSH agent or `REMOTE_SSH_KEY`; do not put private key
+contents in `.env`.
 
 ## ems_encounters.json
 `{"encounters": [ ... ]}` (a bare top-level list is also accepted). Each encounter has every field of
