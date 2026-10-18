@@ -1,7 +1,7 @@
 
 Paramedics work under immense time pressure, often with their hands full and surrounded by noise. Writing reports takes valuable time away from patient care.
 $\color{blue}{\text{Our goal: let paramedics talk, not type.}}$
-
+```text
  o_______________}o{
  |              |   \
  |    911       |____\_____
@@ -9,20 +9,16 @@ $\color{blue}{\text{Our goal: let paramedics talk, not type.}}$
  [/ ___ \       |   / ___ \|
 []_/.-.\_\______|__/_/.-.\_[]
    |(O)|             |(O)|
-    '-'   ScS         '-'
+    '-'               '-'
+```
 
----
-
-$$\Large{\color{blue}{\texttt{[ WHAT IS IT ]}}}$$
+## What is this?
 We use tech EMS already have at the scene: a work phone with mic and ECPR report tablet. Then we turn
 it into a system that reduces paperwork, speeds up patient handoffs, and saves time.
 
 Paramedic speaks -> AI generates a report -> paramedics review the report -> hospital receives the information. At each step, paramedics have the option to clear or rewrite the AI-filled responses. At the end, doctors can receive information sooner and prepare for incoming patients.
 
----
-
-$$\Large{\color{blue}{\texttt{[ HOW ]}}}$$
-
+## How we built it
 **Backend**
 
 - Speech-to-text AI captures paramedic comments.
@@ -38,7 +34,7 @@ A simple Flask web application provides the interface for speech capture, report
 
 <img width="1172" height="841" alt="EMMS Hack the Valley 10" src="https://github.com/user-attachments/assets/07b57cc4-af94-4312-92c1-544fb1e7eb2d" />
 
-$$\Large{\color{blue}{\texttt{[ FUTURE ]}}}$$
+## Future implementations
 Our biggest challenge has been accurately capturing speech in noisy, chaotic environments. Sirens, background conversations, and environmental noise can distort audio and cause transcription errors. We have been working to improve audio filtering and transcription accuracy under these conditions.
 Our next steps are to:
 - **Improve filtering:** Remove irrelevant background noise while preserving important speech.
