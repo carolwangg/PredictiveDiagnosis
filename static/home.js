@@ -34,8 +34,14 @@
   function card(e, i) {
     var w = parseWhen(e.when), a = e.address;
     var tags = '';
-    if (e.missing_fields.length) tags += '<span class="tag alert" title="' + esc(e.missing_fields.join('\n')) + '">' + e.missing_fields.length + (e.missing_fields.length === 1 ? ' alert' : ' alerts') + '</span>';
-    e.protocols.forEach(function (p) { tags += '<span class="tag proto">' + esc(p) + '</span>'; });
+    var missingFields = e.missing_fields || [];
+    var protocols = e.protocols || [];
+    var alertCount = missingFields.length + protocols.length;
+    var alertDetails = [];
+    if (missingFields.length) alertDetails.push(missingFields.length + ' missing field' + (missingFields.length === 1 ? '' : 's'));
+    if (protocols.length) alertDetails.push(protocols.length + ' protocol alert' + (protocols.length === 1 ? '' : 's'));
+    if (missingFields.length) tags += '<span class="tag alert" title="' + esc(missingFields.join('\n')) + '">' + missingFields.length + (missingFields.length === 1 ? ' alert' : ' alerts') + '</span>';
+    protocols.forEach(function (p) { tags += '<span class="tag proto">' + esc(p) + '</span>'; });
     var who = [e.name, e.sex && e.age ? e.sex + ', ' + e.age : '', e.chief_complaint].filter(Boolean).join(' · ');
     return '<li class="card ' + (e.signed ? 'posted' : '') + (e.encounter_id === selected ? ' selected' : '') + '" tabindex="0" role="button" ' +
       'aria-pressed="' + (e.encounter_id === selected) + '" data-id="' + esc(e.encounter_id) + '" style="animation-delay:' + Math.min(i, 10) * 35 + 'ms">' +
@@ -45,7 +51,9 @@
       '<div class="addr"><div class="l1">' + esc(a[0] || 'No address recorded') + '</div>' +
         (a[1] ? '<div class="l2">' + esc(a[1]) + '</div>' : '') +
         '<div class="meta">' + (who ? '<span>' + esc(who) + '</span>' : '') + tags + '</div></div>' +
-      (e.age ? '<div class="badge" title="Patient age">' + esc(e.age) + '</div>' : '<div class="badge na" title="Age not recorded">–</div>') +
+      '<div class="badge alerts' + (alertCount ? '' : ' clear') + '" title="' +
+        esc(alertCount ? alertDetails.join('; ') : 'No alerts') + '" aria-label="' +
+        esc(alertCount + (alertCount === 1 ? ' alert' : ' alerts')) + '">' + alertCount + '</div>' +
       '<div class="when"><span><span class="mon">' + esc(w.mon) + '</span><span class="day">' + esc(w.day) + '</span></span>' +
         '<div class="time">' + esc(w.time) + '</div></div>' +
       '<a class="go" href="' + cfg.page + '/' + encodeURIComponent(e.encounter_id) + '" aria-label="Open incident ' + esc(e.incident_no) + '">' +
@@ -121,6 +129,14 @@
       processing: 'Transcribing…'
     },
     onResult: function (result) {
+      if (result.posted) {
+        toast('Incident ' + result.incident_no + ' posted.');
+        return load();
+      }
+      if (result.already_posted) {
+        toast('Incident ' + result.incident_no + ' is already posted.');
+        return;
+      }
       if (result.redirect_url) window.location.assign(result.redirect_url);
     },
     onError: function (error) { toast('Audio command failed – ' + error.message, true); }

@@ -211,6 +211,13 @@
       showTranscript(transcript, 'Live transcription. Review highlighted wording as you speak.');
     },
     onResult: function (result) {
+      if (result.command === 'post-incident') {
+        applyResult(result);
+        showTranscript(result.transcript, 'Incident posted by voice command.');
+        dirty = false;
+        setState('Incident posted');
+        return;
+      }
       pendingScribeSection = result.section || null;
       showTranscript(
         result.transcript,

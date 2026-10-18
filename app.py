@@ -8,6 +8,7 @@ Pages
   /                     home: every call report in ems_encounters.json (add / open-to-update / remove)
   /encounters/new       blank form (saved to ems_encounters.json on first Save)
   /encounters/<id>      the form, prefilled from that encounter
+  /encounters/<id>/fhir the encounter as a FHIR R4 JSON Bundle
 
 JSON API  (all data lives in ems_encounters.json, see encounter_store.py)
   GET    /api/encounters                 list summaries (home page)
@@ -25,7 +26,7 @@ from pathlib import Path
 import tempfile
 
 from dotenv import load_dotenv
-from flask import Flask, abort, jsonify, render_template, request, url_for
+from flask import Flask, Response, abort, jsonify, render_template, request, url_for
 from werkzeug.exceptions import HTTPException
 
 from encounter_store import EncounterStore, detail, merged_form, summarize
@@ -189,8 +190,35 @@ def open_report(eid):
     return render_form(prefill=merged_form(enc), encounter=encounter_ctx(enc))
 
 
+@app.get("/encounters/<eid>/fhir")
+def encounter_fhir(eid):
+    enc = get_or_404(eid)
+    from acr_to_fhir import acr_to_fhir
+
+    fhir_id = re.sub(r"[^A-Za-z0-9.-]", "-", enc["encounter_id"])[:64]
+    if not fhir_id[0].isalnum():
+        fhir_id = ("enc-" + fhir_id)[:64]
+    bundle = acr_to_fhir(merged_form(enc), encounter_id=fhir_id)
+    response = jsonify(bundle)
+    response.mimetype = "application/fhir+json"
+    return response
+
+
+def _normalize_voice_command(transcript):
+    return " ".join(transcript.casefold().split()).strip(" \t\r\n.,!?")
+
+
+def _send_incident_number(transcript):
+    command = _normalize_voice_command(transcript)
+    match = re.fullmatch(
+        r"send incident (?:number )?(\d+(?:,\d{3})*)",
+        command,
+    )
+    return int(match.group(1).replace(",", "")) if match else None
+
+
 def _voice_command_target(transcript, encounters):
-    command = " ".join(transcript.casefold().split()).strip(" \t\r\n.,!?")
+    command = _normalize_voice_command(transcript)
     if command == "new incident":
         print("voice command: new incident")
         return url_for("new_report")
@@ -227,7 +255,39 @@ def api_voice_command():
         use_remote_whisper=REMOTE_MODEL_CONFIG is not None,
     )
     print(f"voice command: {transcript}")
-    target = _voice_command_target(transcript, store.list())
+    encounters = store.list()
+    incident_number = _send_incident_number(transcript)
+    if incident_number is not None:
+        encounter = next(
+            (
+                item for item in encounters
+                if item.get("incident_no") == incident_number
+            ),
+            None,
+        )
+        if encounter is None:
+            return jsonify(
+                transcript=transcript,
+                posted=False,
+                incident_no=incident_number,
+            )
+        if encounter.get("paramedic_signed_off"):
+            return jsonify(
+                transcript=transcript,
+                posted=False,
+                already_posted=True,
+                incident_no=incident_number,
+            )
+        updated = store.set_signed(encounter["encounter_id"], True)
+        if updated is None:
+            abort(404, "encounter not found")
+        return jsonify(
+            transcript=transcript,
+            posted=True,
+            **detail(updated),
+        )
+
+    target = _voice_command_target(transcript, encounters)
     return jsonify(transcript=transcript, redirect_url=target)
 
 
@@ -328,6 +388,19 @@ def api_audio_update(eid):
             abort(400, "unsupported ACR section")
     if not transcript.strip():
         abort(422, "no speech could be transcribed")
+    if (
+        request.path.endswith("/audio")
+        and section is None
+        and _normalize_voice_command(transcript) == "send incident"
+    ):
+        updated = store.set_signed(eid, True)
+        if updated is None:
+            abort(404, "encounter not found")
+        return jsonify(
+            **detail(updated),
+            command="post-incident",
+            transcript=transcript,
+        )
     if request.path.endswith("/audio") and app.config["TEST_AUDIO_IMPORT"]:
         response = {"transcript": transcript, "awaiting_review": True}
         if section:

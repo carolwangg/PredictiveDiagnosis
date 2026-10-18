@@ -10,7 +10,7 @@ import uuid
 from pydantic import BaseModel, Field
 
 from reference_codes import REFERENCE
-
+LLAMA_MODEL = "qwen2.5:7b"
 BASE_DIR = Path(__file__).resolve().parent
 MASTER_DB_FILE = BASE_DIR / "ems_encounters.json"
 FEEDBACK_LOG_FILE = BASE_DIR / "feedback_log.json"
@@ -378,11 +378,11 @@ def extract_data_with_llm(
             client = Client(host=ollama_host)
         else:
             client = Client(host=ollama_host, timeout=ollama_timeout)
-        response = _chat_with_acr_schema(client.chat, "qwen2.5:7b", prompt, fields)
+        response = _chat_with_acr_schema(client.chat, LLAMA_MODEL, prompt, fields)
     else:
         from ollama import chat
 
-        response = _chat_with_acr_schema(chat, "llama3:latest", prompt, fields)
+        response = _chat_with_acr_schema(chat, LLAMA_MODEL, prompt, fields)
     content = response.message.content
     print(f"[Ollama formatted ACR fields] {content}", flush=True)
 

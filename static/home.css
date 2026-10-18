@@ -126,9 +126,9 @@ main { width: min(980px, 100% - 24px); margin: 18px auto 0; }
 
 .badge {
   display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; color: #fff; font-weight: 700;
-  background: var(--btn);
+  background: var(--warn); font-variant-numeric: tabular-nums;
 }
-.badge.na { background: var(--line); color: var(--muted); }
+.badge.clear { background: var(--ok); }
 
 .when { text-align: left; padding-left: 16px; border-left: 1px solid var(--line); }
 .when .mon { font-size: 13px; font-weight: 600; color: var(--muted); }

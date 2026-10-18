@@ -91,6 +91,76 @@ class ScribeTextInputTests(unittest.TestCase):
         self.assertEqual(unmatched.status_code, 200)
         self.assertIsNone(unmatched.json["redirect_url"])
 
+    def test_home_voice_command_posts_matching_unposted_incident(self):
+        self.store.list.return_value = [
+            {
+                "incident_no": 123456,
+                "encounter_id": "matching-id",
+                "paramedic_signed_off": False,
+            },
+        ]
+        updated = {
+            "encounter_id": "matching-id",
+            "incident_no": 123456,
+            "paramedic_signed_off": True,
+        }
+        self.store.set_signed.return_value = updated
+        with (
+            patch.object(
+                app, "_transcribe_audio_upload", return_value="Send incident 123,456."
+            ),
+            patch.object(app, "detail", return_value={
+                "id": "matching-id",
+                "incident_no": 123456,
+                "signed": True,
+            }),
+        ):
+            response = self.client.post(
+                "/api/voice-command",
+                data={"audio": (BytesIO(b"audio bytes"), "command.wav")},
+                content_type="multipart/form-data",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json["posted"])
+        self.assertEqual(response.json["incident_no"], 123456)
+        self.store.set_signed.assert_called_once_with("matching-id", True)
+
+    def test_home_voice_command_does_not_resign_or_change_missing_incident(self):
+        self.store.list.return_value = [
+            {
+                "incident_no": 123456,
+                "encounter_id": "matching-id",
+                "paramedic_signed_off": True,
+            },
+        ]
+        with patch.object(
+            app, "_transcribe_audio_upload", return_value="Send incident 123456"
+        ):
+            already_posted = self.client.post(
+                "/api/voice-command",
+                data={"audio": (BytesIO(b"audio bytes"), "command.wav")},
+                content_type="multipart/form-data",
+            )
+
+        self.assertEqual(already_posted.status_code, 200)
+        self.assertTrue(already_posted.json["already_posted"])
+        self.store.set_signed.assert_not_called()
+
+        self.store.list.return_value = []
+        with patch.object(
+            app, "_transcribe_audio_upload", return_value="Send incident 999999"
+        ):
+            missing = self.client.post(
+                "/api/voice-command",
+                data={"audio": (BytesIO(b"audio bytes"), "command.wav")},
+                content_type="multipart/form-data",
+            )
+
+        self.assertEqual(missing.status_code, 200)
+        self.assertFalse(missing.json["posted"])
+        self.store.set_signed.assert_not_called()
+
     def test_test_mode_transcript_goes_directly_to_llm(self):
         with (
             patch.dict(app.app.config, {"TEST_AUDIO_IMPORT": True}),
@@ -274,6 +344,52 @@ class ScribeTextInputTests(unittest.TestCase):
             "awaiting_review": True,
         })
         transcribe.assert_called_once()
+        extract.assert_not_called()
+
+    def test_main_audio_voice_command_posts_current_incident_without_scribe(self):
+        with (
+            patch.dict(app.app.config, {"TEST_AUDIO_IMPORT": True}),
+            patch.object(app, "_transcribe_audio_upload", return_value="Send incident."),
+            patch.object(app, "detail", return_value={
+                "id": "test-id",
+                "incident_no": 123,
+                "signed": True,
+            }),
+            patch("prehospital_scribe.extract_data_with_llm") as extract,
+        ):
+            response = self.client.post(
+                "/api/encounters/test-id/audio",
+                data={"audio": (BytesIO(b"audio bytes"), "recording.wav")},
+                content_type="multipart/form-data",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["command"], "post-incident")
+        self.assertEqual(response.json["transcript"], "Send incident.")
+        self.store.set_signed.assert_called_once_with("test-id", True)
+        extract.assert_not_called()
+
+    def test_section_audio_does_not_treat_send_incident_as_post_command(self):
+        transcribe = Mock(return_value="Send incident.")
+        stt_module = SimpleNamespace(transcribe_audio_file=transcribe)
+        with (
+            patch.dict(app.app.config, {"TEST_AUDIO_IMPORT": True}),
+            patch.object(app, "REMOTE_MODEL_CONFIG", None),
+            patch.dict("sys.modules", {"modules.stt": stt_module}),
+            patch("prehospital_scribe.extract_data_with_llm") as extract,
+        ):
+            response = self.client.post(
+                "/api/encounters/test-id/audio",
+                data={
+                    "audio": (BytesIO(b"audio bytes"), "recording.wav"),
+                    "section": "clinical-information",
+                },
+                content_type="multipart/form-data",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json["awaiting_review"])
+        self.store.set_signed.assert_not_called()
         extract.assert_not_called()
 
     def test_test_mode_section_audio_preserves_scope_for_review(self):
