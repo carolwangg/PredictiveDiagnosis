@@ -1,6 +1,7 @@
 <img width="1915" height="863" alt="Screenshot 2026-10-18 083049" src="https://github.com/user-attachments/assets/e5435a5f-3d14-41c9-acf0-bd9f50129d81" />
 
 #### Paramedics work under immense time pressure, often with their hands full and surrounded by noise. Writing reports takes valuable time away from patient care.
+
 #### $\color{blue}{\text{Our goal: let paramedics talk, not type.}}$
 
 ## What is this?
