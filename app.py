@@ -1,6 +1,6 @@
 """Flask backend for the Ambulance Call Report app.
 
-Run:   pip install flask pydantic ollama numpy faster-whisper sounddevice && python app.py
+Run:   pip install flask pydantic ollama numpy faster-whisper sounddevice "av<19" && python app.py
        ollama pull llama3:latest
        ->  http://127.0.0.1:5000/
 
@@ -18,21 +18,28 @@ JSON API  (all data lives in ems_encounters.json, see encounter_store.py)
   POST   /api/encounters/<id>/sign       {"signed": true|false}  -> paramedic_signed_off
   POST   /api/encounters/<id>/audio      multipart audio recording -> transcribed ACR field updates
 """
+import json
+import os
 import re
 from pathlib import Path
 import tempfile
 
+from dotenv import load_dotenv
 from flask import Flask, abort, jsonify, render_template, request
 from werkzeug.exceptions import HTTPException
 
 from encounter_store import EncounterStore, detail, merged_form, summarize
 
 BASE = Path(__file__).resolve().parent
+load_dotenv(BASE / ".env")
 DATA_FILE = BASE / "ems_encounters.json"
 DEFAULT_ROWS = 12
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 25 * 1024 * 1024
+app.config["TEST_AUDIO_IMPORT"] = os.getenv("TEST", "").strip().lower() in {
+    "1", "true", "yes", "on"
+}
 app.jinja_env.trim_blocks = True
 app.jinja_env.lstrip_blocks = True
 
@@ -47,6 +54,7 @@ def render_form(prefill=None, inline=False, encounter=None):
         proc_rows=max(1, min(request.args.get("rows", DEFAULT_ROWS, type=int), 60)),
         inline=inline,
         encounter=encounter,
+        test_audio_import=app.config["TEST_AUDIO_IMPORT"],
     )
     if inline:
         ctx["css"] = (BASE / "static" / "acr.css").read_text(encoding="utf-8")
@@ -186,27 +194,56 @@ def api_audio_update(eid):
         "audio/mpeg": ".mp3",
         "audio/wav": ".wav",
         "audio/x-wav": ".wav",
+        "audio/x-pn-wav": ".wav",
+        "audio/x-m4a": ".m4a",
+        "audio/m4a": ".m4a",
     }
     suffix = extensions.get(audio.mimetype)
     if suffix is None:
+        suffix = {
+            ".webm": ".webm",
+            ".ogg": ".ogg",
+            ".mp4": ".mp4",
+            ".m4a": ".m4a",
+            ".mp3": ".mp3",
+            ".wav": ".wav",
+        }.get(Path(audio.filename).suffix.lower())
+    if suffix is None:
         abort(415, "unsupported audio format")
 
-    from prehospital_scribe import extract_data_with_llm
-    from modules.stt import transcribe_audio_file
+    print(
+        f"[audio] Received recording for incident {enc['incident_no']} "
+        f"({audio.filename}, {audio.content_length or 'size unknown'} bytes).",
+        flush=True,
+    )
 
+    from prehospital_scribe import extract_data_with_llm
+    from modules.stt import transcribe_audio_file, transcribe_audio_file_remote
+    
     with tempfile.TemporaryDirectory(prefix="acr_audio_") as temp_dir:
         audio_path = Path(temp_dir) / ("recording" + suffix)
         audio.save(audio_path)
         if audio_path.stat().st_size == 0:
             abort(400, "audio recording is empty")
-        transcript = transcribe_audio_file(audio_path)
+        transcript = transcribe_audio_file_remote(audio_path)
+
+    print(f"[audio] Transcription complete for incident {enc['incident_no']}.", flush=True)
+    print(f"[transcript] {transcript}", flush=True)
 
     if not transcript.strip():
         abort(422, "no speech could be transcribed")
     try:
         extracted = extract_data_with_llm(transcript)
+    except ConnectionError:
+        return jsonify(error=(
+            "Ollama is not running or reachable. Start Ollama, verify that "
+            "llama3:latest is available, and try again."
+        )), 503
     except ValueError as error:
         abort(502, f"scribe returned invalid structured data: {error}")
+    print(f"[ollama] ACR extraction formatted for incident {enc['incident_no']}:", flush=True)
+    print(json.dumps(extracted, indent=2, ensure_ascii=False), flush=True)
+
     updates = {key: value for key, value in extracted.items()
                if key == "procedures" or value not in (None, "", False, [])}
     if not updates:
@@ -218,6 +255,7 @@ def api_audio_update(eid):
         abort(409, str(error))
     if updated is None:
         abort(404, "encounter not found")
+    print(f"[audio] ACR updates saved for incident {enc['incident_no']}.", flush=True)
     return jsonify({**detail(updated), "form": merged_form(updated)})
 
 

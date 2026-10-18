@@ -60,6 +60,8 @@
     document.title = 'Incident ' + r.incident_no + ' – Ambulance Call Report';
     $('btn-record').disabled = !!r.signed;
     $('btn-record').title = r.signed ? 'Unpost this report before recording an update' : 'Record an update for this incident';
+    var importButton = $('btn-import-audio');
+    if (importButton) importButton.disabled = !!r.signed || busy;
     pill.textContent = r.signed ? 'Posted' : 'Unposted';
     pill.dataset.signed = r.signed ? 'true' : 'false';
     signBtn.textContent = r.signed ? 'Unpost' : 'Post';
@@ -118,6 +120,61 @@
     },
     onError: function (error) { setState('Voice update failed – ' + error.message, 'err'); }
   });
+
+  var importButton = $('btn-import-audio');
+  if (importButton) {
+    var audioFile = $('audio-file');
+    importButton.addEventListener('click', function () { audioFile.click(); });
+    audioFile.addEventListener('change', function () {
+      var file = audioFile.files && audioFile.files[0];
+      audioFile.value = '';
+      if (!file) return;
+      if (meta.signed) {
+        setState('Unpost this report before importing audio.', 'err');
+        return;
+      }
+      var recordingState = $('btn-record').dataset.state;
+      if (recordingState && recordingState !== 'idle') {
+        setState('Stop recording before importing an audio file.', 'err');
+        return;
+      }
+      if (busy) return;
+
+      importButton.disabled = true;
+      $('btn-record').disabled = true;
+      var saved = dirty || !meta.id ? save() : Promise.resolve();
+      saved.then(function () {
+        busy = true;
+        saveBtn.disabled = true;
+        signBtn.disabled = true;
+        setState('Importing audio…');
+        var body = new FormData();
+        body.append('audio', file, file.name);
+        return fetch(meta.api + '/' + encodeURIComponent(meta.id) + '/audio', {
+          method: 'POST',
+          headers: { Accept: 'application/json' },
+          body: body
+        }).then(function (response) {
+          return response.json().catch(function () { return {}; }).then(function (result) {
+            if (!response.ok) throw new Error(result.error || ('HTTP ' + response.status));
+            ACR.clear();
+            ACR.populate(result.form || {});
+            applyResult(result);
+            dirty = false;
+            setState('Audio imported and fields updated');
+          });
+        });
+      }).catch(function (error) {
+        setState('Audio import failed – ' + error.message, 'err');
+      }).then(function () {
+        busy = false;
+        importButton.disabled = !!meta.signed;
+        saveBtn.disabled = false;
+        signBtn.disabled = false;
+        $('btn-record').disabled = !!meta.signed;
+      });
+    });
+  }
 
   document.addEventListener('keydown', function (e) {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); save().catch(function () {}); }

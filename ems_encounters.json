@@ -383,20 +383,126 @@
     },
     {
       "encounter_id": "fb742a3e-7528-41e8-91f5-7f0e9ff0ae6c",
-      "chief_complaint": null,
-      "onset": null,
+      "chief_complaint": "Patient is non-responsive and stopped breathing.",
+      "onset": "0000-00-00 14:40",
       "allergies": [],
       "medications_administered": [],
-      "vitals_stream": [],
+      "vitals_stream": [
+        {
+          "timestamp": "Unknown",
+          "bp": "140/90",
+          "hr": null,
+          "spo2": 294,
+          "gcs": 15,
+          "blood_glucose": null
+        },
+        {
+          "timestamp": "14:40",
+          "bp": null,
+          "hr": null,
+          "spo2": null,
+          "gcs": 15,
+          "blood_glucose": null
+        },
+        {
+          "timestamp": "",
+          "bp": null,
+          "hr": null,
+          "spo2": 72,
+          "gcs": null,
+          "blood_glucose": null
+        },
+        {
+          "timestamp": "14:42",
+          "bp": null,
+          "hr": null,
+          "spo2": null,
+          "gcs": 15,
+          "blood_glucose": null
+        },
+        {
+          "timestamp": "14:42",
+          "bp": null,
+          "hr": null,
+          "spo2": null,
+          "gcs": 15,
+          "blood_glucose": null
+        }
+      ],
       "protocol_triggers": [],
       "missing_fields": [
         "Allergies not recorded (Required before ED handoff)"
       ],
       "paramedic_signed_off": false,
       "acr": {
-        "procedures": []
+        "chief_complaint": "Patient is non-responsive and stopped breathing.",
+        "incident_history": "[22:51] Onset 20 minutes ago\n[23:32] onset 20 minutes ago\n[23:33] Post initiating CPR and recommendations\n[00:12] Patient is non-responsive and stopped breathing. No problem with carotid pulse.\n[00:12] onset 20 minutes ago\n[00:52] unknown\n[00:52] Patient is non-responsive and stopped breathing.",
+        "procedures": [
+          {
+            "time": "Unknown",
+            "procedure": "Administered 160 milligrams of aspirin",
+            "crew": "14402",
+            "reading": "Aspirin",
+            "result_code": "Unknown",
+            "resp_rate": "Unknown",
+            "pulse_rate": "Unknown",
+            "bp": "140/90",
+            "temp": "Unknown",
+            "spo2": "294",
+            "pupil_r": "Unknown",
+            "pupil_l": "Unknown",
+            "dose": "160 milligrams",
+            "route": "Barley",
+            "gcs": "15"
+          },
+          {
+            "time": "1440",
+            "procedure": "administered",
+            "crew": "barley",
+            "reading": "160 milligrams of aspirin",
+            "gcs": "15"
+          },
+          {
+            "spo2": "72"
+          },
+          {
+            "procedure": "CPR",
+            "crew": "red dimensions",
+            "reading": "72"
+          },
+          {
+            "time": "1442",
+            "procedure": "aspirin orally",
+            "reading": "160 milligrams",
+            "route": "orally",
+            "gcs": "15"
+          },
+          {
+            "time": "1442",
+            "procedure": "aspirin",
+            "reading": "160 milligrams",
+            "route": "orally",
+            "gcs": "15"
+          },
+          {
+            "procedure": "Initiating CPR in red dimensions via a valve mask.",
+            "reading": "72%"
+          },
+          {
+            "procedure": "Periodically for shock analysis."
+          }
+        ],
+        "first_name": "John",
+        "last_name": "Doe",
+        "age": 25,
+        "sex": "M",
+        "call_date": "0000-00-00",
+        "occurrence_date": "0000-00-00",
+        "occurrence_time": "1440",
+        "primary_problem": "Unknown",
+        "problem_code": "Unknown"
       },
-      "updated_at": "2026-10-17T21:34:58-04:00",
+      "updated_at": "2026-10-18T00:52:51-04:00",
       "created_at": "2026-10-17T21:12:16-04:00",
       "incident_no": 441371
     }

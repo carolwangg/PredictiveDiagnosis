@@ -95,6 +95,10 @@
     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8"/></svg>
     <span>Record audio</span>
   </button>
+  {% if test_audio_import %}
+  <input type="file" id="audio-file" accept="audio/*,.webm,.ogg,.mp4,.m4a,.mp3,.wav" hidden>
+  <button type="button" class="btn" id="btn-import-audio" {% if encounter.signed %}disabled title="Unpost this report before importing audio"{% endif %}>Import audio file</button>
+  {% endif %}
   <button type="button" class="btn {{ '' if encounter.signed else 'primary' }}" id="btn-sign" aria-label="{{ 'Unpost incident' if encounter.signed else 'Post incident' }}">{{ 'Unpost' if encounter.signed else 'Post' }}</button>
   <button type="button" class="btn primary" id="btn-save">Save</button>
 </div>
