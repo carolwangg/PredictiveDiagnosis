@@ -11,6 +11,7 @@
   var dirty = false, busy = false;
   var $ = function (id) { return document.getElementById(id); };
   var stateEl = $('save-state'), saveBtn = $('btn-save'), signBtn = $('btn-sign'), pill = $('status-pill');
+  var importButton = $('btn-import-audio');
 
   function setState(text, cls) { stateEl.textContent = text; stateEl.className = 'save-state ' + (cls || ''); }
 
@@ -60,7 +61,6 @@
     document.title = 'Incident ' + r.incident_no + ' – Ambulance Call Report';
     $('btn-record').disabled = !!r.signed;
     $('btn-record').title = r.signed ? 'Unpost this report before recording an update' : 'Record an update for this incident';
-    var importButton = $('btn-import-audio');
     if (importButton) importButton.disabled = !!r.signed || busy;
     pill.textContent = r.signed ? 'Posted' : 'Unposted';
     pill.dataset.signed = r.signed ? 'true' : 'false';
@@ -121,7 +121,6 @@
     onError: function (error) { setState('Voice update failed – ' + error.message, 'err'); }
   });
 
-  var importButton = $('btn-import-audio');
   if (importButton) {
     var audioFile = $('audio-file');
     importButton.addEventListener('click', function () { audioFile.click(); });
@@ -147,7 +146,7 @@
         busy = true;
         saveBtn.disabled = true;
         signBtn.disabled = true;
-        setState('Importing audio…');
+        setState('Processing uploaded audio…');
         var body = new FormData();
         body.append('audio', file, file.name);
         return fetch(meta.api + '/' + encodeURIComponent(meta.id) + '/audio', {
@@ -161,11 +160,11 @@
             ACR.populate(result.form || {});
             applyResult(result);
             dirty = false;
-            setState('Audio imported and fields updated');
+            setState('Uploaded audio processed');
           });
         });
       }).catch(function (error) {
-        setState('Audio import failed – ' + error.message, 'err');
+        setState('Audio upload failed – ' + error.message, 'err');
       }).then(function () {
         busy = false;
         importButton.disabled = !!meta.signed;

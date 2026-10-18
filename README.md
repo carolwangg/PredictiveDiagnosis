@@ -1,9 +1,7 @@
 # Ambulance Call Report – home page + editable form
 
-    pip install flask pydantic ollama numpy faster-whisper sounddevice "av<19" python-dotenv
-    # Optional test-only audio file import on incident pages:
-    # Add TEST=True to .env, then restart the app.
-    ollama serve                 # if the Ollama app/service is not already running
+    pip install flask python-dotenv pydantic ollama numpy faster-whisper sounddevice
+    # Optional: set TEST=True in .env to show Upload audio on incident pages.
     ollama pull llama3:latest
     python app.py                 # http://127.0.0.1:5000/
     python build_static.py        # -> acr_form.html (blank form only, no server / home page / saving)
@@ -25,10 +23,9 @@ secure context and microphone permission must be granted. Stop recording to auto
 with faster-whisper, extract sparse ACR form fields with local Ollama (`llama3:latest`), and merge
 those fields into the selected incident without clearing existing form data. Audio is uploaded only to
 this app, held temporarily for transcription, and then discarded. The standalone `python prehospital_scribe.py`
-workflow remains interactive in the terminal. Ollama must be running and the `llama3:latest` model
-must be available; if it is unavailable, the audio API returns HTTP 503 with a clear retry message.
-Set `TEST=True` in `.env` and restart the app to show **Import audio file** on incident pages. It accepts
-common browser-recording and audio file formats, including WebM, OGG, MP4/M4A, MP3, and WAV.
+workflow remains interactive in the terminal.
+With `TEST=True` in `.env`, incident pages also show **Upload audio** so a local audio recording can
+be sent through the same transcription and extraction flow. Restart the app after changing `.env`.
 
 ## ems_encounters.json
 `{"encounters": [ ... ]}` (a bare top-level list is also accepted). Each encounter has every field of

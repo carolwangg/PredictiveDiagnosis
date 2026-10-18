@@ -63,24 +63,3 @@ def transcribe_audio_file(audio_file: str | Path) -> str:
         for segment in segments
         if segment.text.strip()
     ).strip()
-
-from pathlib import Path
-import requests
-
-def transcribe_audio_file_remote(audio_file: str | Path) -> str:
-    """Transcribe an audio file using the remote Faster-Whisper API."""
-    with open(audio_file, "rb") as audio:
-        response = requests.post(
-            "http://127.0.0.1:8000/transcribe",
-            files={
-                "file": (Path(audio_file).name, audio, "audio/mp4")
-            },
-            timeout=600,
-        )
-
-    # response.raise_for_status()
-    if not response.ok:
-        print("Status:", response.status_code)
-        print("Server error:", response.text)
-        response.raise_for_status()
-    return response.json()["text"]

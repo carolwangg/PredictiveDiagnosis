@@ -111,43 +111,9 @@ def _int_or_none(value):
         return None
 
 
-def _flatten_extraction_sections(extraction):
-    """Flatten section-grouped LLM JSON into the ACR form's flat field map."""
-    section_aliases = {
-        "demographics": "demographics",
-        "clinical": "clinical",
-        "clinical information": "clinical",
-        "allergies": "allergies",
-        "medical history": "medical_history",
-        "medical_history": "medical_history",
-        "medications": "medications",
-        "medication checkboxes": "medications",
-        "medication_checkboxes": "medications",
-        "exam": "exam",
-        "physical exam": "exam",
-        "physical_exam": "exam",
-    }
-    flattened = {}
-    for key, value in extraction.items():
-        section = section_aliases.get(key.strip().lower()) if isinstance(key, str) else None
-        if section is None:
-            if key in flattened:
-                raise ValueError(f"Scribe returned duplicate ACR field: {key}.")
-            flattened[key] = value
-            continue
-        if not isinstance(value, dict):
-            raise ValueError(f"Scribe section {key} must be a JSON object.")
-        for field, field_value in value.items():
-            if field in flattened:
-                raise ValueError(f"Scribe returned duplicate ACR field: {field}.")
-            flattened[field] = field_value
-    return flattened
-
-
 def _validate_extraction(extraction):
     if not isinstance(extraction, dict):
         raise ValueError("Scribe response must be a JSON object.")
-    extraction = _flatten_extraction_sections(extraction)
     unknown = set(extraction) - ACR_FIELDS - {"procedures"}
     if unknown:
         raise ValueError("Scribe returned unsupported ACR fields: " + ", ".join(sorted(unknown)))
@@ -189,13 +155,12 @@ def extract_data_with_llm(raw_transcript: str) -> dict:
 
     prompt = f"""
 You extract only facts explicitly stated in a paramedic's prehospital report.
-Return one valid JSON object grouped under the section names listed below. Put each
-field under its matching section, use the exact field names shown, and keep procedures
-as a top-level list. Do not add explanatory prose or any other section names.
+Return one valid JSON object using the exact flat field names used by the Ambulance
+Call Report (ACR) web form. Do not add a wrapper object or explanatory prose.
 Only include fields supported by this transcript. Omit unknown or unstated fields;
 never guess, infer a negative finding, or overwrite a value by returning an empty value.
 
-The available sections and form fields are:
+The available form fields are:
 demographics: first_name, last_name, age, sex, mail_street_no, mail_street_name,
 mail_city, mail_province, mail_postal_code, pickup_location, call_date, occurrence_date,
 occurrence_time;
@@ -229,29 +194,19 @@ for another drug and put its name in reading. Use code "010" for a row of vital
 signs and "025" for a blood glucose reading. Preserve units in glucose readings
 and doses. For a vitals row, use ACR names (pulse_rate, bp, spo2, gcs, resp_rate).
 Keep incident_history concise, chronological, and factual. Do not create empty
-procedure rows. Omit sections with no supported facts. If nothing can be safely
-extracted, return {{}}.
+procedure rows. If nothing can be safely extracted, return {{}}.
 
 Transcript:
 {json.dumps(raw_transcript)}
 """
-    from ollama import chat, Client
-    client = Client(host="http://127.0.0.1:11435")
+    from ollama import chat
 
-    response = client.chat(
+    response = chat(
         model="llama3:latest",
         messages=[{"role": "user", "content": prompt}],
         format="json",
-        think=False,
     )
     content = response["message"]["content"]
-    def seconds(ns):
-        return round(ns / 1_000_000_000, 3)
-    print("Model load:", seconds(response["load_duration"]))
-    print("Input processing:", seconds(response["prompt_eval_duration"]))
-    print("Output generation:", seconds(response["eval_duration"]))
-    print("Input tokens:", response["prompt_eval_count"])
-    print("Output tokens:", response["eval_count"])
     return _validate_extraction(json.loads(content))
 
 

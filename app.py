@@ -1,6 +1,6 @@
 """Flask backend for the Ambulance Call Report app.
 
-Run:   pip install flask pydantic ollama numpy faster-whisper sounddevice "av<19" && python app.py
+Run:   pip install flask pydantic ollama numpy faster-whisper sounddevice && python app.py
        ollama pull llama3:latest
        ->  http://127.0.0.1:5000/
 
@@ -18,7 +18,6 @@ JSON API  (all data lives in ems_encounters.json, see encounter_store.py)
   POST   /api/encounters/<id>/sign       {"signed": true|false}  -> paramedic_signed_off
   POST   /api/encounters/<id>/audio      multipart audio recording -> transcribed ACR field updates
 """
-import json
 import os
 import re
 from pathlib import Path
@@ -211,39 +210,24 @@ def api_audio_update(eid):
     if suffix is None:
         abort(415, "unsupported audio format")
 
-    print(
-        f"[audio] Received recording for incident {enc['incident_no']} "
-        f"({audio.filename}, {audio.content_length or 'size unknown'} bytes).",
-        flush=True,
-    )
-
     from prehospital_scribe import extract_data_with_llm
-    from modules.stt import transcribe_audio_file, transcribe_audio_file_remote
-    
+    from modules.stt import transcribe_audio_file
+
     with tempfile.TemporaryDirectory(prefix="acr_audio_") as temp_dir:
         audio_path = Path(temp_dir) / ("recording" + suffix)
         audio.save(audio_path)
         if audio_path.stat().st_size == 0:
             abort(400, "audio recording is empty")
-        transcript = transcribe_audio_file_remote(audio_path)
-
-    print(f"[audio] Transcription complete for incident {enc['incident_no']}.", flush=True)
-    print(f"[transcript] {transcript}", flush=True)
+        transcript = transcribe_audio_file(audio_path)
+    print(f"[Whisper transcript] {transcript}", flush=True)
 
     if not transcript.strip():
         abort(422, "no speech could be transcribed")
     try:
         extracted = extract_data_with_llm(transcript)
-    except ConnectionError:
-        return jsonify(error=(
-            "Ollama is not running or reachable. Start Ollama, verify that "
-            "llama3:latest is available, and try again."
-        )), 503
     except ValueError as error:
         abort(502, f"scribe returned invalid structured data: {error}")
-    print(f"[ollama] ACR extraction formatted for incident {enc['incident_no']}:", flush=True)
-    print(json.dumps(extracted, indent=2, ensure_ascii=False), flush=True)
-
+    print(f"[Ollama formatted ACR fields] {extracted}", flush=True)
     updates = {key: value for key, value in extracted.items()
                if key == "procedures" or value not in (None, "", False, [])}
     if not updates:
@@ -255,7 +239,6 @@ def api_audio_update(eid):
         abort(409, str(error))
     if updated is None:
         abort(404, "encounter not found")
-    print(f"[audio] ACR updates saved for incident {enc['incident_no']}.", flush=True)
     return jsonify({**detail(updated), "form": merged_form(updated)})
 
 
