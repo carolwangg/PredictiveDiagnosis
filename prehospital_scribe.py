@@ -119,7 +119,7 @@ def _validate_extraction(extraction):
         raise ValueError("Scribe returned unsupported ACR fields: " + ", ".join(sorted(unknown)))
     for key in list(extraction):
         value = extraction[key]
-        if value is None or value == "":
+        if value is None:
             del extraction[key]
         elif key in CHECKBOX_FIELDS:
             if not isinstance(value, bool):
@@ -304,52 +304,223 @@ def log_paramedic_feedback(transcript: str, ai_extraction: dict,
     FEEDBACK_LOG_FILE.write_text(json.dumps(feedback, indent=2), encoding="utf-8")
 
 
-def vet_extraction_with_paramedic(transcript: str, extracted_data: dict) -> tuple[dict, str, str]:
-    """Interactive review for the standalone CLI; the web flow never prompts."""
-    extracted_data = dict(extracted_data)
-    original_extracted = dict(extracted_data)
+def vet_extraction_with_paramedic(
+        transcript: str, extracted_data: dict[str, object]) -> tuple[dict[str, object], str, str]:
+    """Review or edit sparse ACR fields in the standalone CLI."""
+    extracted_data = _validate_extraction(dict(extracted_data))
     comments = ""
     status = "Accepted"
+
+    def edit_procedure(code: str, field: str, value: str, time_value: str = "") -> None:
+        rows = extracted_data.setdefault("procedures", [])
+        if not isinstance(rows, list):
+            rows = []
+            extracted_data["procedures"] = rows
+        row = next(
+            (item for item in rows
+             if isinstance(item, dict) and str(item.get("procedure", "")) == code),
+            None,
+        )
+        if row is None:
+            row = {"procedure": code}
+            if time_value:
+                row["time"] = time_value
+            rows.append(row)
+        row[field] = value
+        if time_value and not row.get("time"):
+            row["time"] = time_value
+
     print("\n" + "=" * 50)
-    print("PARAMEDIC REVIEW & VERIFICATION")
+    print("📋 PARAMEDIC REVIEW & VERIFICATION STEP")
     print("=" * 50)
     print(f'Transcript: "{transcript}"\n')
+    print("AI Extracted Summary:")
     print(json.dumps(extracted_data, indent=2))
+    print("=" * 50)
+
     while True:
-        print("\n[1] Accept  [2] Edit ACR field  [3] Add comment  [4] Reject extraction")
+        print("\nReview Actions:")
+        print("  [1] Accept AI Extraction")
+        print("  [2] Edit Any Field (Name, Age, Gender, Allergies, Complaint, Vitals, Medications)")
+        print("  [3] Add Paramedic Clinical Comment")
+        print("  [4] Reject Extraction (Keep transcript only)")
+
         choice = input("Select review action (1-4): ").strip()
         if choice == "1":
+            print("[✓] Extraction accepted by paramedic.")
             break
         if choice == "2":
-            field = input("Enter exact ACR field name: ").strip()
-            if field in ACR_FIELDS:
-                value = input(f"Enter value for {field}: ").strip()
-                if field in CHECKBOX_FIELDS:
-                    if value.lower() not in ("true", "false"):
-                        print("Checkbox values must be true or false.")
-                        continue
-                    extracted_data[field] = value.lower() == "true"
+            field = input(
+                "Enter field to edit (name, age, gender, allergies, complaint, bp, hr, "
+                "spo2, gcs, glucose, medication, or an exact ACR field): "
+            ).strip().lower()
+            original_extracted = json.loads(json.dumps(extracted_data))
+
+            if field == "name":
+                name = input("Enter correct patient name: ").strip()
+                parts = name.split(maxsplit=1)
+                extracted_data["first_name"] = parts[0] if parts else ""
+                extracted_data["last_name"] = parts[1] if len(parts) > 1 else ""
+            elif field == "age":
+                value = input("Enter correct patient age: ").strip()
+                if value and not value.isdigit():
+                    print("[!] Age must be a whole number.")
+                    continue
+                if value:
+                    extracted_data["age"] = value
                 else:
-                    extracted_data[field] = value
-                status = "Modified"
+                    extracted_data["age"] = ""
+            elif field == "gender":
+                value = input("Enter correct patient gender (M/F or description): ").strip()
+                if value:
+                    extracted_data["sex"] = value
+                else:
+                    extracted_data["sex"] = ""
+            elif field == "allergies":
+                value = input("Enter allergies (comma-separated; NKA/NKDA/CNO supported): ").strip()
+                items = [item.strip() for item in value.split(",") if item.strip()]
+                extracted_data.pop("allergies_nka", None)
+                extracted_data.pop("allergies_cno", None)
+                extracted_data.pop("allergies_other", None)
+                extracted_data.pop("allergies_details", None)
+                if any(item.casefold() in {"nka", "nkda", "no known allergies", "no known drug allergies"}
+                       for item in items):
+                    extracted_data["allergies_nka"] = True
+                else:
+                    if any(item.casefold() == "cno" for item in items):
+                        extracted_data["allergies_cno"] = True
+                    others = [item for item in items if item.casefold() != "cno"]
+                    if others:
+                        extracted_data["allergies_other"] = True
+                        extracted_data["allergies_details"] = ", ".join(others)
+                if not items:
+                    extracted_data.update({
+                        "allergies_nka": False,
+                        "allergies_cno": False,
+                        "allergies_other": False,
+                        "allergies_details": "",
+                    })
+            elif field == "complaint":
+                value = input("Enter correct complaint / status update: ").strip()
+                if value:
+                    extracted_data["chief_complaint"] = value
+                else:
+                    extracted_data["chief_complaint"] = ""
+            elif field in {"bp", "hr", "spo2", "gcs", "glucose"}:
+                value = input(f"Enter correct value for '{field}': ").strip()
+                if field in {"hr", "spo2", "gcs"} and value and not value.isdigit():
+                    print(f"[!] {field.upper()} must be a whole number.")
+                    continue
+                procedure_code = "025" if field == "glucose" else "010"
+                form_field = "reading" if field == "glucose" else {
+                    "bp": "bp", "hr": "pulse_rate", "spo2": "spo2", "gcs": "gcs",
+                }[field]
+                if value:
+                    edit_procedure(
+                        procedure_code, form_field, value,
+                        input("Enter time (HH:MM, or leave blank): ").strip(),
+                    )
+                else:
+                    rows = extracted_data.get("procedures", [])
+                    if isinstance(rows, list):
+                        form_field_key = form_field
+                        target = next(
+                            (item for item in rows
+                             if isinstance(item, dict)
+                             and str(item.get("procedure", "")) == procedure_code
+                             and form_field_key in item),
+                            None,
+                        )
+                        if target is not None:
+                            target.pop(form_field_key, None)
+                            if set(target) == {"procedure"}:
+                                rows.remove(target)
+            elif field == "medication":
+                drug = input("Enter drug name: ").strip()
+                dose = input("Enter dose (e.g. '5 mg'): ").strip()
+                route = input("Enter route (e.g. 'nebulizer', 'intramuscular'): ").strip()
+                time_value = input("Enter timestamp (or leave blank): ").strip()
+                if drug:
+                    matches = [
+                        code for code, label in MEDICATION_NAMES.items()
+                        if label.casefold() == drug.casefold()
+                    ]
+                    aliases = {
+                        "aspirin": "504", "asa": "504", "nitro": "615",
+                        "gtn": "615", "ventolin": "650", "dextrose": "530",
+                        "d50": "530",
+                    }
+                    code = matches[0] if matches else aliases.get(drug.casefold(), "700")
+                    row = {"procedure": code}
+                    if code == "700":
+                        row["reading"] = drug
+                    for key, value in (("dose", dose), ("route", route), ("time", time_value)):
+                        if value:
+                            row[key] = value
+                    extracted_data.setdefault("procedures", []).append(row)
+                else:
+                    print("[!] Medication name is required.")
+                    continue
             elif field == "procedures":
-                print("Edit procedures in the ACR form after this CLI session.")
+                value = input("Enter the complete procedures value as JSON array: ").strip()
+                try:
+                    rows = json.loads(value)
+                    if not isinstance(rows, list):
+                        raise ValueError("expected a JSON array")
+                    _validate_extraction({"procedures": rows})
+                except (json.JSONDecodeError, ValueError) as error:
+                    print(f"[!] Invalid procedures: {error}")
+                    continue
+                extracted_data["procedures"] = rows
+            elif field in ACR_FIELDS:
+                value = input(f"Enter correct value for '{field}' (blank clears it): ").strip()
+                if field in CHECKBOX_FIELDS:
+                    if value.casefold() not in {"true", "false"}:
+                        print("[!] Checkbox values must be true or false.")
+                        continue
+                    extracted_data[field] = value.casefold() == "true"
+                elif value:
+                    extracted_data[field] = value
+                else:
+                    extracted_data[field] = ""
             else:
-                print("That is not an editable ACR field.")
+                print("[!] Unknown field name.")
+                continue
+
+            try:
+                _validate_extraction(extracted_data)
+            except ValueError as error:
+                print(f"[!] Edit not applied: {error}")
+                extracted_data = original_extracted
+                continue
+            status = "Modified"
+            print("\n[Updated AI Extraction]:")
+            print(json.dumps(extracted_data, indent=2))
+            log_paramedic_feedback(
+                transcript=transcript,
+                ai_extraction=original_extracted,
+                human_correction=extracted_data,
+                reason="Full Field Modification",
+            )
         elif choice == "3":
-            comments = input("Type paramedic clinical note/comment: ").strip()
+            note = input("Type paramedic clinical comment: ").strip()
+            if note:
+                comments = note
+                print(f'[✓] Comment appended: "{comments}"')
         elif choice == "4":
-            extracted_data = {
-                "incident_history": "Raw voice report (extraction rejected): " + transcript
-            }
+            original_extracted = json.loads(json.dumps(extracted_data))
+            extracted_data = {"incident_history": transcript}
             status = "Manual Overridden"
+            log_paramedic_feedback(
+                transcript=transcript,
+                ai_extraction=original_extracted,
+                human_correction=extracted_data,
+                reason="Full Rejection",
+            )
+            print("[🛑] AI extraction rejected. Raw transcript preserved in the ACR incident history.")
             break
         else:
             print("[!] Invalid option. Select 1, 2, 3, or 4.")
-    if status == "Modified":
-        log_paramedic_feedback(transcript, original_extracted, extracted_data, "Field Modification")
-    elif status == "Manual Overridden":
-        log_paramedic_feedback(transcript, original_extracted, extracted_data, "Full Rejection")
     return _validate_extraction(extracted_data), comments, status
 
 
@@ -393,8 +564,12 @@ def process_new_audio_event(record: PatientRecord, raw_transcript: str,
     for key, value in updates.items():
         if key == "procedures":
             acr.setdefault("procedures", []).extend(value)
-        elif value not in (None, "", False):
+        else:
             acr[key] = value
+    if updates.get("allergies_nka"):
+        acr.update({"allergies_cno": False, "allergies_other": False, "allergies_details": ""})
+    elif updates.get("allergies_other") or updates.get("allergies_details"):
+        acr["allergies_nka"] = False
     updated = run_protocol_and_validation_engine(_record_from_acr(acr, record))
     save_record_to_master_json(updated, acr)
     return updated
