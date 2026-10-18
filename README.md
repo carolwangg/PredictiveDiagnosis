@@ -40,5 +40,4 @@ Our next steps are to:
 - **Improve filtering:** Remove irrelevant background noise while preserving important speech.
 - - **Improve reliability:** Strengthen transcription and AI-generated suggestions while keeping paramedics in control.
 - **Integrate with EMS software:** Explore deployment on Interdev tablets commonly used by Ontario paramedics. We have not yet had access to a device for compatibility testing.
-- **Reduce latency:** Make report generation faster<img width="1172" height="841" alt="EMMS Hack the Valley 10" src="https://github.com/user-attachments/assets/03068cc7-7d7e-4c26-bead-6ed57e4d1700" />
-
+- **Reduce latency:** Make report generation faster
