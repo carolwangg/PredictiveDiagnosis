@@ -12,6 +12,7 @@
   var $ = function (id) { return document.getElementById(id); };
   var stateEl = $('save-state'), saveBtn = $('btn-save'), signBtn = $('btn-sign'), pill = $('status-pill');
   var importButton = $('btn-import-audio');
+  var textScribeButton = $('btn-scribe-text');
 
   function setState(text, cls) { stateEl.textContent = text; stateEl.className = 'save-state ' + (cls || ''); }
 
@@ -62,6 +63,7 @@
     $('btn-record').disabled = !!r.signed;
     $('btn-record').title = r.signed ? 'Unpost this report before recording an update' : 'Record an update for this incident';
     if (importButton) importButton.disabled = !!r.signed || busy;
+    if (textScribeButton) textScribeButton.disabled = !!r.signed || busy;
     pill.textContent = r.signed ? 'Posted' : 'Unposted';
     pill.dataset.signed = r.signed ? 'true' : 'false';
     signBtn.textContent = r.signed ? 'Unpost' : 'Post';
@@ -169,6 +171,65 @@
       }).then(function () {
         busy = false;
         importButton.disabled = !!meta.signed;
+        saveBtn.disabled = false;
+        signBtn.disabled = false;
+        $('btn-record').disabled = !!meta.signed;
+      });
+    });
+  }
+
+  if (textScribeButton) {
+    textScribeButton.addEventListener('click', function () {
+      var transcript = $('scribe-text').value.trim();
+      if (!transcript) {
+        setState('Enter transcript text before sending it to the scribe.', 'err');
+        $('scribe-text').focus();
+        return;
+      }
+      if (meta.signed) {
+        setState('Unpost this report before sending text to the scribe.', 'err');
+        return;
+      }
+      var recordingState = $('btn-record').dataset.state;
+      if (recordingState && recordingState !== 'idle') {
+        setState('Stop recording before sending transcript text.', 'err');
+        return;
+      }
+      if (busy) return;
+
+      textScribeButton.disabled = true;
+      $('btn-record').disabled = true;
+      if (importButton) importButton.disabled = true;
+      var saved = dirty || !meta.id ? save() : Promise.resolve();
+      saved.then(function () {
+        busy = true;
+        saveBtn.disabled = true;
+        signBtn.disabled = true;
+        setState('Sending text to scribe…');
+        var body = new FormData();
+        body.append('source', 'text');
+        body.append('transcript', transcript);
+        return fetch(meta.api + '/' + encodeURIComponent(meta.id) + '/audio', {
+          method: 'POST',
+          headers: { Accept: 'application/json' },
+          body: body
+        }).then(function (response) {
+          return response.json().catch(function () { return {}; }).then(function (result) {
+            if (!response.ok) throw new Error(result.error || ('HTTP ' + response.status));
+            ACR.clear();
+            ACR.populate(result.form || {});
+            applyResult(result);
+            dirty = false;
+            $('scribe-text').value = '';
+            setState('Text processed by scribe');
+          });
+        });
+      }).catch(function (error) {
+        setState('Text scribe failed – ' + error.message, 'err');
+      }).then(function () {
+        busy = false;
+        textScribeButton.disabled = !!meta.signed;
+        if (importButton) importButton.disabled = !!meta.signed;
         saveBtn.disabled = false;
         signBtn.disabled = false;
         $('btn-record').disabled = !!meta.signed;

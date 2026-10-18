@@ -57,32 +57,78 @@ def _build_extraction_prompt(raw_transcript: str) -> str:
     procedure_fields = ", ".join(sorted(PROCEDURE_FIELDS))
     return f"""
 You extract only facts explicitly stated in a paramedic's prehospital report.
-Return one valid JSON object using the exact flat field names used by the Ambulance
-Call Report (ACR) web form. Do not add a wrapper object or explanatory prose.
-Only include fields supported by this transcript. Omit unknown or unstated fields;
-never guess, infer a negative finding, or overwrite a value by returning an empty value.
+Return one object using the exact field names in the supplied JSON schema. Include
+every required field. Use an empty string for unavailable text fields, false for
+checkboxes that are not explicitly supported, and an empty list when there are no
+documented procedures. Never guess, infer a negative clinical finding, or add prose.
 
 Scalar form fields: {scalar_fields}.
 Checkbox fields: {checkbox_fields}. Checkbox values must be JSON booleans (true or false).
 For peripheral_edema and pedal_pulse, use the exact radio choice "absent" or "present".
-Do not return other form fields that are not listed above.
-
 The procedures field is a list of rows using only these procedure columns:
-{procedure_fields}.
+{procedure_fields}. Each procedure row must include every listed column, using an
+empty string when a value is unavailable. Do not add other fields.
 
 Use ACR date format YYYY-MM-DD and time format HH:MM. Only set a checkbox to true or
-false when the transcript explicitly supports that value; otherwise omit it. Use the
+false when the transcript explicitly supports that value; otherwise use false. Use the
 value "M" or "F" for sex when clear, otherwise the stated description. For an administered
 drug, add a procedure row with its medication procedure code when known; use code "700"
 for another drug and put its name in reading. Use code "010" for a row of vital signs
 and "025" for a blood glucose reading. Preserve units in glucose readings and doses.
 For a vitals row, use ACR names (pulse_rate, bp, spo2, gcs, resp_rate). Keep
 incident_history concise, chronological, and factual. Do not create empty procedure
-rows. If any fields gives an empty string, omit it. If nothing can be safely extracted, return {{}}.
+rows. If nothing can be safely extracted, return empty strings, false values, and an
+empty procedures list as required by the schema.
 
 Transcript:
 {json.dumps(raw_transcript)}
 """
+
+
+def build_acr_schema() -> dict:
+    """Build the JSON schema Ollama uses to constrain ACR extraction output."""
+    properties = {
+        field: {"type": "boolean" if field in CHECKBOX_FIELDS else "string"}
+        for field in sorted(ACR_FIELDS)
+    }
+    properties["procedures"] = {
+        "type": "array",
+        "items": {
+            "type": "object",
+            "properties": {
+                field: {"type": "string"} for field in sorted(PROCEDURE_FIELDS)
+            },
+            "required": sorted(PROCEDURE_FIELDS),
+            "additionalProperties": False,
+        },
+    }
+    return {
+        "type": "object",
+        "properties": properties,
+        "required": sorted(properties),
+        "additionalProperties": False,
+    }
+
+
+_ACR_SYSTEM_PROMPT = (
+    "You extract documented facts from paramedic transcripts. "
+    "Never invent missing information. Use only fields in the supplied schema. "
+    "Do not infer examination findings from normal expectations. Use empty strings "
+    "for unavailable text fields and false for unchecked boolean fields. "
+    "Return only the schema."
+)
+
+
+def _chat_with_acr_schema(chat, model: str, prompt: str):
+    return chat(
+        model=model,
+        messages=[
+            {"role": "system", "content": _ACR_SYSTEM_PROMPT},
+            {"role": "user", "content": prompt},
+        ],
+        format=build_acr_schema(),
+        options={"temperature": 0, "num_predict": 2048},
+    )
 MEDICATION_NAMES = {}
 for section_title, section_lines in REFERENCE:
     if section_title == "Medications":
@@ -144,30 +190,40 @@ def _validate_extraction(extraction):
         value = extraction[key]
         if value is None:
             del extraction[key]
+        elif key == "procedures":
+            if not isinstance(value, list):
+                raise ValueError("Scribe field procedures must be a list.")
+            normalized_rows = []
+            for index, row in enumerate(value):
+                if not isinstance(row, dict):
+                    raise ValueError(f"Scribe procedure row {index + 1} must be an object.")
+                unknown_columns = set(row) - PROCEDURE_FIELDS
+                if unknown_columns:
+                    raise ValueError(
+                        f"Scribe procedure row {index + 1} has unsupported fields: "
+                        + ", ".join(sorted(unknown_columns))
+                    )
+                normalized_row = {}
+                for field, column_value in row.items():
+                    if column_value is None:
+                        normalized_row[field] = ""
+                    elif isinstance(column_value, bool) or not isinstance(
+                        column_value, (str, int, float)
+                    ):
+                        raise ValueError(
+                            f"Scribe procedure field {field} must be a scalar."
+                        )
+                    else:
+                        normalized_row[field] = str(column_value).strip()
+                normalized_rows.append(normalized_row)
+            extraction[key] = normalized_rows
         elif key in CHECKBOX_FIELDS:
             if not isinstance(value, bool):
                 raise ValueError(f"Scribe field {key} must be a boolean.")
-        elif key != "procedures" and (
-                isinstance(value, bool) or not isinstance(value, (str, int, float))):
+        elif isinstance(value, bool) or not isinstance(value, (str, int, float)):
             raise ValueError(f"Scribe field {key} must be a scalar.")
-    if "procedures" in extraction:
-        procedures = extraction["procedures"]
-        if not isinstance(procedures, list):
-            raise ValueError("Scribe procedures must be a list.")
-        normalized_rows = []
-        for row in procedures:
-            if not isinstance(row, dict) or set(row) - PROCEDURE_FIELDS:
-                raise ValueError("Scribe returned a malformed procedure row.")
-            normalized = {}
-            for key, value in row.items():
-                if value is None or value == "":
-                    continue
-                if not isinstance(value, (str, int, float)) or isinstance(value, bool):
-                    raise ValueError(f"Procedure field {key} must be a scalar.")
-                normalized[key] = str(value)
-            if normalized:
-                normalized_rows.append(normalized)
-        extraction["procedures"] = normalized_rows
+        else:
+            extraction[key] = str(value).strip()
     return extraction
 
 
@@ -181,7 +237,7 @@ def extract_data_with_llm(
     if not raw_transcript.strip():
         raise ValueError("Cannot extract ACR fields from an empty transcript.")
 
-    prompt = _build_extraction_prompt(raw_transcript)
+    prompt = raw_transcript #_build_extraction_prompt(raw_transcript)
     if ollama_host:
         from ollama import Client
 
@@ -189,28 +245,22 @@ def extract_data_with_llm(
             client = Client(host=ollama_host)
         else:
             client = Client(host=ollama_host, timeout=ollama_timeout)
-        response = client.chat(
-            model="llama3:latest",
-            messages=[{"role": "user", "content": prompt}],
-            format="json",
-        )
+        response = _chat_with_acr_schema(client.chat, "qwen2.5:7b", prompt)
     else:
         from ollama import chat
 
-        response = chat(
-            model="llama3:latest",
-            messages=[{"role": "user", "content": prompt}],
-            format="json",
-        )
-    content = response["message"]["content"]
+        response = _chat_with_acr_schema(chat, "llama3:latest", prompt)
+    content = response.message.content
     print(f"[Ollama formatted ACR fields] {content}", flush=True)
+
     def seconds(ns):
         return round(ns / 1_000_000_000, 3)
-    print("Model load:", seconds(response["load_duration"]))
-    print("Input processing:", seconds(response["prompt_eval_duration"]))
-    print("Output generation:", seconds(response["eval_duration"]))
-    print("Input tokens:", response["prompt_eval_count"])
-    print("Output tokens:", response["eval_count"])
+
+    print("Model load:", seconds(response.load_duration))
+    print("Input processing:", seconds(response.prompt_eval_duration))
+    print("Output generation:", seconds(response.eval_duration))
+    print("Input tokens:", response.prompt_eval_count)
+    print("Output tokens:", response.eval_count)
     return _validate_extraction(json.loads(content))
 
 

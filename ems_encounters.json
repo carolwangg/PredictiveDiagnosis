@@ -301,12 +301,12 @@
     },
     {
       "encounter_id": "d526ca7d-3cfe-4944-94c1-18bb05f2c604",
-      "chief_complaint": "Acute chest pain",
-      "onset": "20 minutes ago",
+      "chief_complaint": "acute question chest pain radiating to the left arm onset 20 minutes ago",
+      "onset": "2026-10-17 14:40",
       "allergies": [],
       "medications_administered": [
         {
-          "drug": "Aspirin",
+          "drug": "ASA",
           "dose": "160 mg",
           "route": "PO",
           "timestamp": "14:42"
@@ -320,48 +320,36 @@
           "spo2": 94,
           "gcs": 15,
           "blood_glucose": null
+        },
+        {
+          "timestamp": "14:40",
+          "bp": "140/90",
+          "hr": 110,
+          "spo2": 94,
+          "gcs": 15,
+          "blood_glucose": null
         }
       ],
       "protocol_triggers": [
         {
-          "protocol": "STEMI / Acute Coronary Syndrome",
+          "protocol": "ACS / STEMI Protocol",
           "status": "Active",
           "required_actions": [
-            "12-Lead ECG transmission",
-            "Aspirin confirmed",
-            "Notify ED receiving team"
+            "12-Lead ECG",
+            "Verify aspirin administration"
           ]
         }
       ],
       "missing_fields": [
-        "Allergies not recorded (Required before handoff)",
-        "Blood glucose missing for chest pain protocol"
+        "Allergies not recorded (Required before ED handoff)"
       ],
       "paramedic_signed_off": false,
       "incident_no": 441370,
       "created_at": "2026-10-17T14:35:00",
-      "updated_at": "2026-10-17T23:54:30+00:00",
+      "updated_at": "2026-10-18T02:20:51-04:00",
       "acr": {
-        "service_name": "Example EMS",
-        "service_no": "123",
-        "mail_province": "ON",
-        "mail_country": "Canada",
-        "call_date": "2026-10-17",
-        "occurrence_date": "2026-10-17",
-        "occurrence_time": "14:35",
-        "last_name": "Doe",
-        "first_name": "John",
-        "age": "65",
-        "sex": "M",
-        "mail_street_no": "3728",
-        "mail_street_name": "Maple Grove Rd",
-        "mail_city": "Toronto",
-        "mail_postal_code": "M0A 0A1",
-        "pickup_code": "R",
-        "history_cardiac": true,
-        "primary_problem": "Ischemic",
-        "problem_code": "51",
-        "chief_complaint": "Acute chest pain",
+        "chief_complaint": "acute question chest pain radiating to the left arm onset 20 minutes ago",
+        "incident_history": "Acute chest pain, onset about 20 minutes prior to call.",
         "procedures": [
           {
             "time": "14:40",
@@ -376,9 +364,70 @@
             "procedure": "504",
             "dose": "160 mg",
             "route": "PO"
+          },
+          {
+            "bp": "140/90",
+            "crew": "",
+            "dose": "",
+            "gcs": "15",
+            "pain": "",
+            "procedure": "vitals",
+            "pulse_rate": "110",
+            "pupil_l": "",
+            "pupil_r": "",
+            "reading": "",
+            "resp_rate": "",
+            "result_code": "",
+            "route": "",
+            "spo2": "94",
+            "temp": "",
+            "time": "1440"
+          },
+          {
+            "bp": "",
+            "crew": "",
+            "dose": "160",
+            "gcs": "",
+            "pain": "",
+            "procedure": "medication",
+            "pulse_rate": "",
+            "pupil_l": "",
+            "pupil_r": "",
+            "reading": "",
+            "resp_rate": "",
+            "result_code": "",
+            "route": "orally",
+            "spo2": "",
+            "temp": "",
+            "time": "1442"
           }
         ],
-        "incident_history": "Acute chest pain, onset about 20 minutes prior to call."
+        "service_name": "Example EMS",
+        "service_no": "123",
+        "mail_province": "ON",
+        "mail_country": "Canada",
+        "call_date": "2026-10-17",
+        "occurrence_date": "2026-10-17",
+        "occurrence_time": "1440",
+        "last_name": "Doe",
+        "first_name": "John",
+        "age": "65",
+        "sex": "male",
+        "mail_street_no": "3728",
+        "mail_street_name": "Maple Grove Rd",
+        "mail_city": "Toronto",
+        "mail_postal_code": "M0A 0A1",
+        "pickup_code": "R",
+        "history_cardiac": true,
+        "primary_problem": "acute question chest pain radiating to the left arm onset 20 minutes ago",
+        "problem_code": "51",
+        "air_entry_bilateral": true,
+        "back_pelvis_unremarkable": true,
+        "breath_clear": true,
+        "extremities_unremarkable": true,
+        "meds_asa": true,
+        "skin_colour_unremarkable": true,
+        "skin_condition_unremarkable": true
       }
     },
     {

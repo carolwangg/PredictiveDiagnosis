@@ -16,7 +16,7 @@ JSON API  (all data lives in ems_encounters.json, see encounter_store.py)
   PUT    /api/encounters/<id>            replace the saved form; re-runs the scribe rule engine
   DELETE /api/encounters/<id>            remove
   POST   /api/encounters/<id>/sign       {"signed": true|false}  -> paramedic_signed_off
-  POST   /api/encounters/<id>/audio      multipart audio recording -> transcribed ACR field updates
+  POST   /api/encounters/<id>/audio      audio or test-mode transcript -> extracted ACR field updates
 """
 import os
 import re
@@ -187,65 +187,73 @@ def api_sign(eid):
 
 @app.post("/api/encounters/<eid>/audio")
 def api_audio_update(eid):
-    """Transcribe an uploaded browser recording and apply extracted ACR fields."""
+    """Transcribe audio or process a test transcript, then apply extracted ACR fields."""
     eid = valid_id(eid)
     enc = get_or_404(eid)
     if enc.get("paramedic_signed_off"):
         abort(409, "reopen this report before adding a voice update")
 
-    audio = request.files.get("audio")
-    if audio is None or not audio.filename:
-        abort(400, "audio recording is required")
-
-    extensions = {
-        "audio/webm": ".webm",
-        "video/webm": ".webm",
-        "audio/ogg": ".ogg",
-        "audio/mp4": ".mp4",
-        "audio/mpeg": ".mp3",
-        "audio/wav": ".wav",
-        "audio/x-wav": ".wav",
-        "audio/x-pn-wav": ".wav",
-        "audio/x-m4a": ".m4a",
-        "audio/m4a": ".m4a",
-    }
-    suffix = extensions.get(audio.mimetype)
-    if suffix is None:
-        suffix = {
-            ".webm": ".webm",
-            ".ogg": ".ogg",
-            ".mp4": ".mp4",
-            ".m4a": ".m4a",
-            ".mp3": ".mp3",
-            ".wav": ".wav",
-        }.get(Path(audio.filename).suffix.lower())
-    if suffix is None:
-        abort(415, "unsupported audio format")
-
     from prehospital_scribe import extract_data_with_llm
 
-    with tempfile.TemporaryDirectory(prefix="acr_audio_") as temp_dir:
-        audio_path = Path(temp_dir) / ("recording" + suffix)
-        audio.save(audio_path)
-        if audio_path.stat().st_size == 0:
-            abort(400, "audio recording is empty")
-        use_remote_whisper = (
-            app.config["TEST_AUDIO_IMPORT"]
-            and request.form.get("source") == "file"
-            and REMOTE_MODEL_CONFIG is not None
-        )
-        if use_remote_whisper:
-            try:
-                transcript = transcribe_audio_file_remote(
-                    audio_path, REMOTE_MODEL_CONFIG
-                )
-            except RemoteModelError as error:
-                abort(502, str(error))
-        else:
-            from modules.stt import transcribe_audio_file
+    if request.form.get("source") == "text":
+        if not app.config["TEST_AUDIO_IMPORT"]:
+            abort(403, "typed transcript input is available only in test mode")
+        transcript = request.form.get("transcript", "").strip()
+        if not transcript:
+            abort(400, "transcript text is required")
+        print(f"[Typed transcript] {transcript}", flush=True)
+    else:
+        audio = request.files.get("audio")
+        if audio is None or not audio.filename:
+            abort(400, "audio recording is required")
 
-            transcript = transcribe_audio_file(audio_path)
-    print(f"[Whisper transcript] {transcript}", flush=True)
+        extensions = {
+            "audio/webm": ".webm",
+            "video/webm": ".webm",
+            "audio/ogg": ".ogg",
+            "audio/mp4": ".mp4",
+            "audio/mpeg": ".mp3",
+            "audio/wav": ".wav",
+            "audio/x-wav": ".wav",
+            "audio/x-pn-wav": ".wav",
+            "audio/x-m4a": ".m4a",
+            "audio/m4a": ".m4a",
+        }
+        suffix = extensions.get(audio.mimetype)
+        if suffix is None:
+            suffix = {
+                ".webm": ".webm",
+                ".ogg": ".ogg",
+                ".mp4": ".mp4",
+                ".m4a": ".m4a",
+                ".mp3": ".mp3",
+                ".wav": ".wav",
+            }.get(Path(audio.filename).suffix.lower())
+        if suffix is None:
+            abort(415, "unsupported audio format")
+
+        with tempfile.TemporaryDirectory(prefix="acr_audio_") as temp_dir:
+            audio_path = Path(temp_dir) / ("recording" + suffix)
+            audio.save(audio_path)
+            if audio_path.stat().st_size == 0:
+                abort(400, "audio recording is empty")
+            use_remote_whisper = (
+                app.config["TEST_AUDIO_IMPORT"]
+                and request.form.get("source") == "file"
+                and REMOTE_MODEL_CONFIG is not None
+            )
+            if use_remote_whisper:
+                try:
+                    transcript = transcribe_audio_file_remote(
+                        audio_path, REMOTE_MODEL_CONFIG
+                    )
+                except RemoteModelError as error:
+                    abort(502, str(error))
+            else:
+                from modules.stt import transcribe_audio_file
+
+                transcript = transcribe_audio_file(audio_path)
+        print(f"[Whisper transcript] {transcript}", flush=True)
 
     if not transcript.strip():
         abort(422, "no speech could be transcribed")
@@ -267,8 +275,11 @@ def api_audio_update(eid):
         abort(502, str(error))
     except (ConnectionError, ResponseError) as error:
         abort(502, f"Ollama request failed: {error}")
-    updates = {key: value for key, value in extracted.items()
-               if key == "procedures" or value not in (None, "", False, [])}
+    updates = {
+        key: value for key, value in extracted.items()
+        if (key == "procedures" and value)
+        or (key != "procedures" and value not in (None, "", False, []))
+    }
     if not updates:
         abort(422, "no ACR fields could be extracted from the recording")
 

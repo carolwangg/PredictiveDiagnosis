@@ -1,7 +1,7 @@
 # Ambulance Call Report – home page + editable form
 
     pip install flask python-dotenv pydantic ollama numpy faster-whisper sounddevice requests
-    # Optional: set TEST=True in .env to show Upload audio on incident pages.
+    # Optional: set TEST=True in .env to show audio upload and direct transcript input.
     ollama pull llama3:latest
     python app.py                 # http://127.0.0.1:5000/
     python build_static.py        # -> acr_form.html (blank form only, no server / home page / saving)
@@ -24,8 +24,10 @@ with faster-whisper, extract sparse ACR form fields with Ollama (`llama3:latest`
 fields into the selected incident without clearing existing form data. Audio is uploaded only to this
 app, held temporarily for transcription, and then discarded. The standalone `python prehospital_scribe.py`
 workflow remains interactive in the terminal and uses local Ollama.
-With `TEST=True` in `.env`, incident pages also show **Upload audio** so a local audio recording can
-be sent through the same transcription and extraction flow. Restart the app after changing `.env`.
+With `TEST=True` in `.env`, incident pages also show **Upload audio** and a text box for sending a
+typed or pasted transcript directly to the scribe. Text input skips Whisper and goes straight to
+Ollama; uploaded audio continues through transcription and extraction. Restart the app after
+changing `.env`.
 
 Set `REMOTE=True` in `.env` to route Ollama requests through an SSH tunnel. When both `REMOTE=True`
 and `TEST=True`, audio selected with **Upload audio** is transcribed by the Vultr VM's Faster-Whisper

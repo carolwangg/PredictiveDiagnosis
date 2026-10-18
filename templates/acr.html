@@ -96,8 +96,12 @@
     <span>Record audio</span>
   </button>
   {% if test_audio_import %}
-  <input type="file" id="audio-file" accept="audio/*,.webm,.ogg,.mp4,.m4a,.mp3,.wav" hidden>
-  <button type="button" class="btn" id="btn-import-audio" {% if encounter.signed %}disabled title="Unpost this report before importing audio"{% endif %}>Upload audio</button>
+  <div class="test-text-scribe">
+    <input type="file" id="audio-file" accept="audio/*,.webm,.ogg,.mp4,.m4a,.mp3,.wav" hidden>
+    <button type="button" class="btn" id="btn-import-audio" {% if encounter.signed %}disabled title="Unpost this report before importing audio"{% endif %}>Upload audio</button>
+    <textarea id="scribe-text" rows="2" aria-label="Transcript text for scribe" placeholder="Type or paste a transcript"></textarea>
+    <button type="button" class="btn" id="btn-scribe-text" {% if encounter.signed %}disabled title="Unpost this report before sending text"{% endif %}>Send text to scribe</button>
+  </div>
   {% endif %}
   <button type="button" class="btn {{ '' if encounter.signed else 'primary' }}" id="btn-sign" aria-label="{{ 'Unpost incident' if encounter.signed else 'Post incident' }}">{{ 'Unpost' if encounter.signed else 'Post' }}</button>
   <button type="button" class="btn primary" id="btn-save">Save</button>

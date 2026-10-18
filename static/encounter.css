@@ -33,6 +33,8 @@
 .btn.record { display: inline-flex; align-items: center; gap: 6px; color: #08714e; border-color: #9dd8c1; }
 .btn.record[data-state="recording"] { color: #fff; background: #c52c3b; border-color: #c52c3b; }
 .btn:disabled { opacity: .55; cursor: progress; }
+.test-text-scribe { display: flex; flex-direction: column; gap: 4px; width: 220px; }
+.test-text-scribe textarea { box-sizing: border-box; width: 100%; min-height: 42px; resize: vertical; font: inherit; font-size: 12px; }
 
 .alerts {
   width: min(1100px, 100% - 24px); margin: 12px auto -4px; padding: 10px 14px;

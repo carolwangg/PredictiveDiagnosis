@@ -2,6 +2,8 @@ import re
 from html.parser import HTMLParser
 from pathlib import Path
 import unittest
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
 import app
 from prehospital_scribe import (
@@ -10,6 +12,10 @@ from prehospital_scribe import (
     CHECKBOX_FIELDS,
     PROCEDURE_FIELDS,
     _build_extraction_prompt,
+    _chat_with_acr_schema,
+    extract_data_with_llm,
+    _validate_extraction,
+    build_acr_schema,
 )
 
 
@@ -101,9 +107,71 @@ class ScribeSchemaTests(unittest.TestCase):
         self.assertIn(procedure_line, prompt)
         self.assertIn('use the exact radio choice "absent" or "present"', prompt)
 
-    def test_legacy_call_time_maps_to_call_received_form_field(self):
-        from prehospital_scribe import _validate_extraction
+    def test_ollama_schema_requires_all_supported_fields(self):
+        schema = build_acr_schema()
+        properties = schema["properties"]
+        procedure_schema = properties["procedures"]
+        procedure_item = procedure_schema["items"]
 
+        self.assertEqual(schema["type"], "object")
+        self.assertEqual(set(schema["required"]), set(properties))
+        self.assertFalse(schema["additionalProperties"])
+        for field in ACR_FIELDS:
+            expected_type = "boolean" if field in CHECKBOX_FIELDS else "string"
+            self.assertEqual(properties[field], {"type": expected_type})
+        self.assertEqual(procedure_schema["type"], "array")
+        self.assertEqual(procedure_item["type"], "object")
+        self.assertEqual(set(procedure_item["required"]), PROCEDURE_FIELDS)
+        self.assertEqual(
+            set(procedure_item["properties"]), PROCEDURE_FIELDS
+        )
+        self.assertFalse(procedure_item["additionalProperties"])
+
+    def test_ollama_request_uses_schema_and_deterministic_generation(self):
+        chat = Mock()
+        _chat_with_acr_schema(chat, "model:latest", "extract this")
+
+        kwargs = chat.call_args.kwargs
+        self.assertEqual(kwargs["model"], "model:latest")
+        self.assertEqual(kwargs["messages"][1], {
+            "role": "user",
+            "content": "extract this",
+        })
+        self.assertEqual(kwargs["format"], build_acr_schema())
+        self.assertEqual(
+            kwargs["options"], {"temperature": 0, "num_predict": 2048}
+        )
+        self.assertEqual(kwargs["messages"][0]["role"], "system")
+
+    def test_local_ollama_extraction_parses_schema_response(self):
+        response = SimpleNamespace(
+            message=SimpleNamespace(content='{"chief_complaint":"chest pain"}'),
+            load_duration=0,
+            prompt_eval_duration=0,
+            eval_duration=0,
+            prompt_eval_count=0,
+            eval_count=0,
+        )
+        with patch("ollama.chat", return_value=response) as chat:
+            extraction = extract_data_with_llm("Patient reports chest pain.")
+
+        self.assertEqual(extraction, {"chief_complaint": "chest pain"})
+        self.assertEqual(chat.call_args.kwargs["format"], build_acr_schema())
+
+    def test_extraction_validation_normalizes_scalar_and_procedure_values(self):
+        extraction = _validate_extraction({
+            "age": 65,
+            "allergies_nka": False,
+            "procedures": [{"procedure": 10, "reading": 14.2}],
+        })
+
+        self.assertEqual(extraction, {
+            "age": "65",
+            "allergies_nka": False,
+            "procedures": [{"procedure": "10", "reading": "14.2"}],
+        })
+
+    def test_legacy_call_time_maps_to_call_received_form_field(self):
         self.assertEqual(
             _validate_extraction({"call_time": "14:40:00"}),
             {"ev_call_received": "14:40:00"},
