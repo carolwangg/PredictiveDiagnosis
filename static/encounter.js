@@ -19,8 +19,15 @@
   var transcriptReview = $('transcript-review');
   var transcriptStatus = $('transcript-status');
   var pendingScribeSection = null;
+  var activeAudioControl = null;
+  var transcriptSubmitAfterRecording = false;
+  var transcriptStopButton = $('btn-transcript-stop-record');
 
   function setState(text, cls) { stateEl.textContent = text; stateEl.className = 'save-state ' + (cls || ''); }
+
+  function syncTranscriptButton() {
+    if (textScribeButton) textScribeButton.disabled = !!meta.signed || busy;
+  }
 
   function scheduleSave() {
     clearTimeout(saveTimer);
@@ -82,6 +89,13 @@
   transcriptButton.addEventListener('click', function () {
     toggleTranscript(transcriptSidebar.hidden);
   });
+  if (transcriptStopButton) {
+    transcriptStopButton.addEventListener('click', function () {
+      if (activeAudioControl && activeAudioControl.isRecording()) {
+        activeAudioControl.stop();
+      }
+    });
+  }
   $('btn-transcript-close').addEventListener('click', function () {
     toggleTranscript(false);
     transcriptButton.focus();
@@ -174,11 +188,13 @@
       .then(function (r) {
         busy = false;
         if (saveBtn) saveBtn.disabled = false;
+        syncTranscriptButton();
         if (dirty) scheduleSave();
         return r;
       }, function (e) {
         busy = false;
         if (saveBtn) saveBtn.disabled = false;
+        syncTranscriptButton();
         throw e;
       });
   }
@@ -196,10 +212,64 @@
     }).catch(function (e) { if (e.message !== 'busy') setState('Failed – ' + e.message, 'err'); });
   }
 
+  function submitTranscriptText(transcript) {
+    transcript = transcript || transcriptInput.value.trim();
+    if (!transcript) {
+      setState('Enter transcript text before sending it to the scribe.', 'err');
+      transcriptInput.focus();
+      return Promise.resolve();
+    }
+    if (meta.signed) {
+      setState('Unpost this report before sending text to the scribe.', 'err');
+      return Promise.resolve();
+    }
+    if (busy) return Promise.resolve();
+
+    textScribeButton.disabled = true;
+    $('btn-record').disabled = true;
+    if (importButton) importButton.disabled = true;
+    var saved = dirty || !meta.id ? save() : Promise.resolve();
+    return saved.then(function () {
+      busy = true;
+      syncTranscriptButton();
+      if (saveBtn) saveBtn.disabled = true;
+      signBtn.disabled = true;
+      setState('Sending text to scribe…');
+      return api(
+        'POST',
+        meta.api + '/' + encodeURIComponent(meta.id) + '/text',
+        Object.assign(
+          { transcript: transcript },
+          pendingScribeSection ? { section: pendingScribeSection } : {}
+        )
+      ).then(function (result) {
+        ACR.clear();
+        ACR.populate(result.form || {});
+        applyResult(result);
+        dirty = false;
+        updateTranscriptReview();
+        transcriptStatus.textContent = 'Transcript sent to the scribe and applied to the report.';
+        pendingScribeSection = null;
+        toggleTranscript(false);
+        setState('Text processed by scribe');
+      });
+    }).catch(function (error) {
+      transcriptStatus.textContent = 'Transcript could not be processed.';
+      setState('Text scribe failed – ' + error.message, 'err');
+    }).then(function () {
+      busy = false;
+      textScribeButton.disabled = !!meta.signed;
+      if (importButton) importButton.disabled = !!meta.signed;
+      if (saveBtn) saveBtn.disabled = false;
+      signBtn.disabled = false;
+      $('btn-record').disabled = !!meta.signed;
+    });
+  }
+
   if (saveBtn) saveBtn.addEventListener('click', function () { save().catch(function () {}); });
   signBtn.addEventListener('click', toggleSign);
 
-  ACRAudio.attach($('btn-record'), {
+  var mainAudioControl = ACRAudio.attach($('btn-record'), {
     isDisabled: function () { return !!meta.signed; },
     url: function () { return meta.api + '/' + encodeURIComponent(meta.id) + '/audio'; },
     liveUrl: function () { return meta.api + '/' + encodeURIComponent(meta.id) + '/transcribe'; },
@@ -212,6 +282,7 @@
     },
     onResult: function (result) {
       if (result.command === 'post-incident') {
+        transcriptSubmitAfterRecording = false;
         applyResult(result);
         showTranscript(result.transcript, 'Incident posted by voice command.');
         dirty = false;
@@ -227,27 +298,40 @@
       );
       if (result.awaiting_review) {
         setState('Transcript ready for review');
+        if (transcriptSubmitAfterRecording) {
+          transcriptSubmitAfterRecording = false;
+          return submitTranscriptText(result.transcript);
+        }
         return;
       }
       ACR.clear();
       ACR.populate(result.form || {});
       applyResult(result);
       dirty = false;
+      transcriptSubmitAfterRecording = false;
+      toggleTranscript(false);
       setState('Voice update saved');
     },
     onState: function (state) {
       if (state === 'recording') {
+        activeAudioControl = mainAudioControl;
+        if (transcriptStopButton) transcriptStopButton.hidden = false;
         toggleTranscript(true, false);
         transcriptStatus.textContent = 'Listening. Live transcript will update as audio is recognized.';
       } else if (state === 'processing') {
+        if (transcriptStopButton) transcriptStopButton.hidden = true;
         toggleTranscript(true, false);
         transcriptStatus.textContent = 'Finalizing transcription…';
+      } else if (state === 'idle') {
+        if (activeAudioControl === mainAudioControl) activeAudioControl = null;
+        if (transcriptStopButton) transcriptStopButton.hidden = true;
       }
     },
     onLiveError: function () {
       transcriptStatus.textContent = 'Live transcription is unavailable. The full recording will still be transcribed when you stop.';
     },
     onError: function (error) {
+      transcriptSubmitAfterRecording = false;
       transcriptStatus.textContent = 'Transcription failed.';
       setState('Voice update failed – ' + error.message, 'err');
     }
@@ -255,7 +339,7 @@
 
   document.querySelectorAll('[data-scribe-section]').forEach(function (button) {
     var section = button.dataset.scribeSection;
-    ACRAudio.attach(button, {
+    var sectionAudioControl = ACRAudio.attach(button, {
       isDisabled: function () { return !!meta.signed; },
       url: function () { return meta.api + '/' + encodeURIComponent(meta.id) + '/audio'; },
       liveUrl: function () { return meta.api + '/' + encodeURIComponent(meta.id) + '/transcribe'; },
@@ -283,6 +367,10 @@
         );
         if (result.awaiting_review) {
           setState('Section transcript ready for review');
+          if (transcriptSubmitAfterRecording) {
+            transcriptSubmitAfterRecording = false;
+            return submitTranscriptText(result.transcript);
+          }
           return;
         }
         ACR.clear();
@@ -290,19 +378,28 @@
         applyResult(result);
         dirty = false;
         pendingScribeSection = null;
+        transcriptSubmitAfterRecording = false;
+        toggleTranscript(false);
         setState('Section voice update saved');
       },
       onState: function (state) {
         if (state === 'recording') {
+          activeAudioControl = sectionAudioControl;
+          if (transcriptStopButton) transcriptStopButton.hidden = false;
           pendingScribeSection = section;
           toggleTranscript(true, false);
           transcriptStatus.textContent = 'Listening for the ' + section.replace(/-/g, ' ') + ' section.';
         } else if (state === 'processing') {
+          if (transcriptStopButton) transcriptStopButton.hidden = true;
           toggleTranscript(true, false);
           transcriptStatus.textContent = 'Finalizing the section transcription…';
+        } else if (state === 'idle') {
+          if (activeAudioControl === sectionAudioControl) activeAudioControl = null;
+          if (transcriptStopButton) transcriptStopButton.hidden = true;
         }
       },
       onError: function (error) {
+        transcriptSubmitAfterRecording = false;
         transcriptStatus.textContent = 'Section transcription failed.';
         setState('Section voice update failed – ' + error.message, 'err');
       },
@@ -340,6 +437,7 @@
     var saved = dirty || !meta.id ? save() : Promise.resolve();
     saved.then(function () {
       busy = true;
+      syncTranscriptButton();
       if (saveBtn) saveBtn.disabled = true;
       setState('Processing uploaded audio…');
       showTranscript(
@@ -374,6 +472,7 @@
           applyResult(result);
           dirty = false;
           pendingScribeSection = null;
+          toggleTranscript(false);
           setState(section ? 'Section audio processed' : 'Uploaded audio processed');
         });
       });
@@ -412,60 +511,13 @@
 
   if (textScribeButton) {
     textScribeButton.addEventListener('click', function () {
-      var transcript = transcriptInput.value.trim();
-      if (!transcript) {
-        setState('Enter transcript text before sending it to the scribe.', 'err');
-        transcriptInput.focus();
+      if (activeAudioControl && activeAudioControl.isActive()) {
+        transcriptSubmitAfterRecording = true;
+        transcriptStatus.textContent = 'Stopping recording and sending the final transcript to the scribe…';
+        if (activeAudioControl.isRecording()) activeAudioControl.stop();
         return;
       }
-      if (meta.signed) {
-        setState('Unpost this report before sending text to the scribe.', 'err');
-        return;
-      }
-      var recordingState = $('btn-record').dataset.state;
-      if (recordingState && recordingState !== 'idle') {
-        setState('Stop recording before sending transcript text.', 'err');
-        return;
-      }
-      if (busy) return;
-
-      textScribeButton.disabled = true;
-      $('btn-record').disabled = true;
-      if (importButton) importButton.disabled = true;
-      var saved = dirty || !meta.id ? save() : Promise.resolve();
-      saved.then(function () {
-        busy = true;
-        if (saveBtn) saveBtn.disabled = true;
-        signBtn.disabled = true;
-        setState('Sending text to scribe…');
-        return api(
-          'POST',
-          meta.api + '/' + encodeURIComponent(meta.id) + '/text',
-          Object.assign(
-            { transcript: transcript },
-            pendingScribeSection ? { section: pendingScribeSection } : {}
-          )
-        ).then(function (result) {
-          ACR.clear();
-          ACR.populate(result.form || {});
-          applyResult(result);
-          dirty = false;
-          updateTranscriptReview();
-          transcriptStatus.textContent = 'Transcript sent to the scribe and applied to the report.';
-          pendingScribeSection = null;
-          setState('Text processed by scribe');
-        });
-      }).catch(function (error) {
-        transcriptStatus.textContent = 'Transcript could not be processed.';
-        setState('Text scribe failed – ' + error.message, 'err');
-      }).then(function () {
-        busy = false;
-        textScribeButton.disabled = !!meta.signed;
-        if (importButton) importButton.disabled = !!meta.signed;
-        if (saveBtn) saveBtn.disabled = false;
-        signBtn.disabled = false;
-        $('btn-record').disabled = !!meta.signed;
-      });
+      submitTranscriptText(transcriptInput.value.trim());
     });
   }
 

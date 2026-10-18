@@ -136,7 +136,10 @@
 <aside id="transcript-sidebar" class="transcript-sidebar noprint" aria-label="Paramedic transcript" hidden>
   <div class="transcript-heading">
     <h2>Paramedic transcript</h2>
-    <button type="button" class="btn transcript-close" id="btn-transcript-close" aria-label="Close transcript">Close</button>
+    <div class="transcript-heading-actions">
+      <button type="button" class="btn record transcript-stop-record" id="btn-transcript-stop-record" hidden>Stop recording</button>
+      <button type="button" class="btn transcript-close" id="btn-transcript-close" aria-label="Close transcript">Close</button>
+    </div>
   </div>
   <p id="transcript-status" class="transcript-status" role="status">Transcript will appear here after recording or upload.</p>
   <div id="transcript-review" class="transcript-review" aria-label="Transcript review and wording flags"></div>

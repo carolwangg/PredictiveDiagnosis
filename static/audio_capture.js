@@ -192,6 +192,16 @@
         event.returnValue = '';
       }
     });
+
+    return {
+      stop: stopAndUpload,
+      isRecording: function () {
+        return !!recorder && recorder.state === 'recording';
+      },
+      isActive: function () {
+        return button.dataset.state !== 'idle';
+      }
+    };
   }
 
   global.ACRAudio = { attach: attach };

@@ -12,6 +12,8 @@ from prehospital_scribe import (
     ACR_SCALAR_FIELDS,
     CHECKBOX_FIELDS,
     PROCEDURE_FIELDS,
+    REQUIRED_EXTRACTION_FIELDS,
+    REQUIRED_EXTRACTION_FIELDS_BY_SECTION,
     _build_extraction_prompt,
     _chat_with_acr_schema,
     extract_data_with_llm,
@@ -101,6 +103,11 @@ class ScribeSchemaTests(unittest.TestCase):
         self.assertEqual(clear_targets, content_ids)
         self.assertEqual(clear_targets.count("clinical-demographics-content"), 1)
         self.assertEqual(clear_targets.count("billing-demographics-content"), 1)
+        self.assertRegex(
+            html,
+            r'<button[^>]*id="btn-transcript-stop-record"[^>]*hidden[^>]*>'
+            r'Stop recording</button>',
+        )
 
     def test_section_field_sets_cover_the_acr_schema(self):
         section_fields = set().union(*ACR_SECTION_FIELDS.values())
@@ -151,26 +158,40 @@ class ScribeSchemaTests(unittest.TestCase):
         self.assertIn(checkbox_line, prompt)
         self.assertIn(procedure_line, prompt)
         self.assertIn('use the exact radio choice "absent" or "present"', prompt)
+        self.assertIn("do not return an empty object when facts", prompt)
+        self.assertIn("Include only columns supported by the transcript", prompt)
+        self.assertIn("all events into one row", prompt)
+        self.assertIn("615 for Nitroglycerin (not 700)", prompt)
+        self.assertIn("documented repeat dose as its own row", prompt)
 
-    def test_ollama_schema_requires_all_supported_fields(self):
+    def test_ollama_schema_requires_core_fields_and_allows_sparse_fields(self):
         schema = build_acr_schema()
         properties = schema["properties"]
         procedure_schema = properties["procedures"]
         procedure_item = procedure_schema["items"]
 
         self.assertEqual(schema["type"], "object")
-        self.assertEqual(set(schema["required"]), set(properties))
+        self.assertEqual(
+            set(schema["required"]), REQUIRED_EXTRACTION_FIELDS | {"procedures"}
+        )
         self.assertFalse(schema["additionalProperties"])
         for field in ACR_FIELDS:
             expected_type = "boolean" if field in CHECKBOX_FIELDS else "string"
             self.assertEqual(properties[field], {"type": expected_type})
         self.assertEqual(procedure_schema["type"], "array")
         self.assertEqual(procedure_item["type"], "object")
-        self.assertEqual(set(procedure_item["required"]), PROCEDURE_FIELDS)
+        self.assertEqual(procedure_item["required"], ["procedure"])
         self.assertEqual(
             set(procedure_item["properties"]), PROCEDURE_FIELDS
         )
         self.assertFalse(procedure_item["additionalProperties"])
+        for section, fields in ACR_SECTION_FIELDS.items():
+            with self.subTest(section=section):
+                section_schema = build_acr_schema(fields)
+                self.assertEqual(
+                    set(section_schema["required"]),
+                    REQUIRED_EXTRACTION_FIELDS_BY_SECTION[section],
+                )
 
     def test_ollama_request_uses_schema_and_deterministic_generation(self):
         chat = Mock()

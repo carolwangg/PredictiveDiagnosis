@@ -407,10 +407,10 @@
         }
       ],
       "missing_fields": [],
-      "paramedic_signed_off": false,
+      "paramedic_signed_off": true,
       "incident_no": 441370,
       "created_at": "2026-10-17T14:35:00",
-      "updated_at": "2026-10-18T03:13:35-04:00",
+      "updated_at": "2026-10-18T09:12:52-04:00",
       "acr": {
         "chief_complaint": "acute question chest pain radiating to the left arm",
         "incident_history": "Acute chest pain, onset about 20 minutes prior to call.\n[02:45] Onset 35 minutes ago at 14:10 while shoveling snow\n[02:50] Onset 35 minutes ago at 14:10 while shoveling snow\n[02:58] Onset 35 minutes ago at 14:10 while shoveling snow\n[03:03] Onset 35 minutes ago at 14:10 while shoveling snow\n[03:06] Onset 35 minutes ago at 14:10 while shoveling snow\n[03:10] 65-year-old male named John Doe presented with acute question chest pain radiating to the left arm, onset 20 minutes ago.\n[03:13] 65-year-old male named John Doe experiencing acute question chest pain radiating to the left arm, onset 20 minutes ago.",
@@ -883,7 +883,7 @@
     },
     {
       "encounter_id": "fb742a3e-7528-41e8-91f5-7f0e9ff0ae6c",
-      "chief_complaint": null,
+      "chief_complaint": "acute chest pain",
       "onset": null,
       "allergies": [],
       "medications_administered": [],
@@ -961,12 +961,26 @@
           "blood_glucose": null
         }
       ],
-      "protocol_triggers": [],
+      "protocol_triggers": [
+        {
+          "protocol": "ACS / STEMI Protocol",
+          "status": "Active",
+          "required_actions": [
+            "12-Lead ECG",
+            "Verify aspirin administration"
+          ]
+        }
+      ],
       "missing_fields": [
         "Allergies not recorded (Required before ED handoff)"
       ],
       "paramedic_signed_off": false,
       "acr": {
+        "first_name": "John",
+        "sex": "M",
+        "chief_complaint": "acute chest pain",
+        "trauma3_mechanism": "I'm ",
+        "incident_history": "[08:39] acute chest pain",
         "general_appearance": "Alert and oriented",
         "skin_colour_unremarkable": true,
         "skin_condition_diaphoretic": true,
@@ -974,9 +988,11 @@
         "breath_clear": true,
         "back_pelvis_unremarkable": true,
         "extremities_unremarkable": true,
+        "peripheral_edema": "absent",
+        "pedal_pulse": "absent",
         "ev_call_received": "2023:03:15",
         "remarks": "SPO2 felt 72%",
-        "primary_problem": "Chest pain",
+        "primary_problem": "acute chest pain",
         "procedures": [
           {
             "time": "14:42",
@@ -1074,9 +1090,263 @@
           }
         ]
       },
-      "updated_at": "2026-10-18T06:09:53-04:00",
+      "updated_at": "2026-10-18T08:42:43-04:00",
       "created_at": "2026-10-17T21:12:16-04:00",
       "incident_no": 441371
+    },
+    {
+      "encounter_id": "709cb3f1-73f0-41e6-8c67-61bb0f805e0a",
+      "chief_complaint": null,
+      "onset": null,
+      "allergies": [],
+      "medications_administered": [],
+      "vitals_stream": [],
+      "protocol_triggers": [],
+      "missing_fields": [
+        "Allergies not recorded (Required before ED handoff)"
+      ],
+      "paramedic_signed_off": false,
+      "incident_no": 441372,
+      "created_at": "2026-10-18T08:35:56-04:00",
+      "updated_at": "2026-10-18T08:35:56-04:00",
+      "acr": {
+        "procedures": []
+      }
+    },
+    {
+      "encounter_id": "4e9c7015-0bd6-4559-a83e-3081c73d9a9f",
+      "chief_complaint": "chest pain",
+      "onset": "2023-02-20 14:30",
+      "allergies": [],
+      "medications_administered": [
+        {
+          "drug": "Nitroglycerin",
+          "dose": "0.4 mg",
+          "route": "sublingual",
+          "timestamp": "14:31"
+        }
+      ],
+      "vitals_stream": [
+        {
+          "timestamp": "14:15",
+          "bp": "158/92",
+          "hr": 104,
+          "spo2": 95,
+          "gcs": 15,
+          "blood_glucose": null
+        },
+        {
+          "timestamp": "14:30",
+          "bp": "138/82",
+          "hr": 88,
+          "spo2": 97,
+          "gcs": null,
+          "blood_glucose": null
+        }
+      ],
+      "protocol_triggers": [
+        {
+          "protocol": "ACS / STEMI Protocol",
+          "status": "Active",
+          "required_actions": [
+            "12-Lead ECG",
+            "Verify aspirin administration"
+          ]
+        }
+      ],
+      "missing_fields": [
+        "Allergies not recorded (Required before ED handoff)"
+      ],
+      "paramedic_signed_off": true,
+      "incident_no": 441373,
+      "created_at": "2026-10-18T08:44:15-04:00",
+      "updated_at": "2026-10-18T09:12:02-04:00",
+      "acr": {
+        "chief_complaint": "chest pain",
+        "incident_history": "[08:57] Cardiac arrest occurred on 2026-10-18. Not witnessed.\n[09:04] shoveling snow, onset 35 minutes ago at 14:10\n[09:05] Transport update at 14:30. Following initial Nitroglycerin, chest pain has reduced from 8 out of 10 to 4 out of 10. Repeat vitals: blood pressure 138 over 82, heart rate 88, respiratory rate 18, SpO2 97 percent on 2 liters nasal cannula, GCS 15. Administered a second dose of 0.4 milligrams Nitroglycerin sublingually at 14:31. Pre-notification transmitted to the PCI Cardiac Catheterization Lab.\n[09:06] Transport update at 14:30. Following initial Nitroglycerin, chest pain has reduced from 8 out of 10 to 4 out of 10. Repeat vitals: blood pressure 138 over 82, heart rate 88, respiratory rate 18, SpO2 97 percent on 2 liters nasal cannula, GCS 15. Administered a second dose of 0.4 milligrams Nitroglycerin sublingually at 14:31. Pre-notification transmitted to the PCI Cardiac Catheterization Lab.\n[09:10] Transport update at 14:30. Following initial Nitroglycerin, chest pain has reduced from 8 out of 10 to 4 out of 10. Repeat vitals: blood pressure 138 over 82, heart rate 88, respiratory rate 18, SpO2 97 percent on 2 liters nasal cannula, GCS 15. Administered a second dose of 0.4 milligrams Nitroglycerin sublingually at 14:31. Pre-notification transmitted to the PCI Cardiac Catheterization Lab.",
+        "procedures": [
+          {
+            "bp": "158/92",
+            "gcs": "15",
+            "pulse_rate": "104",
+            "resp_rate": "22",
+            "spo2": "95",
+            "temp": "unknown",
+            "time": "14:15"
+          },
+          {
+            "procedure": "12-lead ECG",
+            "reading": "3 millimeter ST-segment elevation in leads V2 through V4",
+            "time": "14:17"
+          },
+          {
+            "procedure": "Aspirin",
+            "reading": "160 milligrams",
+            "time": "14:18"
+          },
+          {
+            "procedure": "Nitroglycerin",
+            "reading": "0.4 milligrams",
+            "time": "14:20"
+          },
+          {
+            "procedure": "Blood glucose",
+            "reading": "6.4 millimoles per liter",
+            "time": "14:15"
+          },
+          {
+            "procedure": "615",
+            "dose": "0.4 mg",
+            "route": "sublingual",
+            "time": "14:31"
+          },
+          {
+            "procedure": "010",
+            "bp": "138/82",
+            "pulse_rate": "88",
+            "resp_rate": "18",
+            "spo2": "97",
+            "temp": "",
+            "time": "14:30"
+          },
+          {
+            "procedure": "020",
+            "pain": "4",
+            "reading": "improved from 8/10 to 4/10"
+          }
+        ],
+        "age": "62",
+        "dob": "unknown",
+        "first_name": "Arthur",
+        "last_name": "Pendelton",
+        "occurrence_date": "2023-02-20",
+        "arrest_witnessed_by": "unwitnessed",
+        "arrest_witnessed_date": "2026-10-18",
+        "occurrence_time": "14:30",
+        "patient_sequence": "1",
+        "sex": "M",
+        "weight_kg": "unknown"
+      }
+    },
+    {
+      "encounter_id": "e7909f50-9414-4425-9daa-7ca2a974a70d",
+      "chief_complaint": "severe, sub-sterinal crushing chest pain radiating to his left jaw and arm, accompanied by diaphoresis and nausea",
+      "onset": null,
+      "allergies": [],
+      "medications_administered": [
+        {
+          "drug": "Nitroglycerin",
+          "dose": "0.4 mg",
+          "route": "sublingual",
+          "timestamp": "14:20"
+        },
+        {
+          "drug": "chewable aspirin",
+          "dose": "",
+          "route": "",
+          "timestamp": "14:18"
+        },
+        {
+          "drug": "Nitroglycerin",
+          "dose": "0.4 mg",
+          "route": "sublingual",
+          "timestamp": "14:31"
+        }
+      ],
+      "vitals_stream": [
+        {
+          "timestamp": "14:15",
+          "bp": "158/92",
+          "hr": 104,
+          "spo2": 95,
+          "gcs": null,
+          "blood_glucose": null
+        },
+        {
+          "timestamp": "14:30",
+          "bp": "138/82",
+          "hr": 88,
+          "spo2": 97,
+          "gcs": null,
+          "blood_glucose": null
+        }
+      ],
+      "protocol_triggers": [
+        {
+          "protocol": "ACS / STEMI Protocol",
+          "status": "Active",
+          "required_actions": [
+            "12-Lead ECG",
+            "Verify aspirin administration"
+          ]
+        }
+      ],
+      "missing_fields": [
+        "Allergies not recorded (Required before ED handoff)"
+      ],
+      "paramedic_signed_off": false,
+      "incident_no": 441374,
+      "created_at": "2026-10-18T09:15:15-04:00",
+      "updated_at": "2026-10-18T09:25:49-04:00",
+      "acr": {
+        "chief_complaint": "severe, sub-sterinal crushing chest pain radiating to his left jaw and arm, accompanied by diaphoresis and nausea",
+        "incident_history": "[09:17] shoveling snow, set 35 minutes ago at 1410",
+        "procedures": [
+          {
+            "procedure": "010",
+            "bp": "158/92",
+            "pulse_rate": "104",
+            "resp_rate": "22",
+            "spo2": "95",
+            "temp": "unknown",
+            "time": "1415"
+          },
+          {
+            "procedure": "615",
+            "dose": "0.4 mg",
+            "route": "sublingual",
+            "time": "1420"
+          },
+          {
+            "procedure": "700",
+            "reading": "chewable aspirin",
+            "time": "1418"
+          },
+          {
+            "procedure": "020",
+            "pain": "unknown",
+            "reading": "improved from 8/10 to 4/10",
+            "time": "unknown"
+          },
+          {
+            "procedure": "615",
+            "dose": "0.4 mg",
+            "route": "sublingual",
+            "time": "14:31"
+          },
+          {
+            "procedure": "010",
+            "bp": "138/82",
+            "pulse_rate": "88",
+            "resp_rate": "18",
+            "spo2": "97%",
+            "time": "14:30"
+          },
+          {
+            "procedure": "020",
+            "pain": "4",
+            "reading": "chest pain has reduced from 8 out of 10 to 4 out of 10"
+          }
+        ],
+        "age": "62",
+        "dob": "YYYY-MM-DD",
+        "first_name": "Arthur",
+        "last_name": "Pendleton",
+        "occurrence_date": "YYYY-MM-DD",
+        "sex": "M",
+        "weight_kg": "unknown",
+        "welfare_charge": "unknown"
+      }
     }
   ]
 }

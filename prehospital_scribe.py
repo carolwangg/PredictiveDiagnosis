@@ -10,7 +10,7 @@ import uuid
 from pydantic import BaseModel, Field
 
 from reference_codes import REFERENCE
-LLAMA_MODEL = "qwen2.5:7b"
+LLAMA_MODEL = "llama3:latest"
 BASE_DIR = Path(__file__).resolve().parent
 MASTER_DB_FILE = BASE_DIR / "ems_encounters.json"
 FEEDBACK_LOG_FILE = BASE_DIR / "feedback_log.json"
@@ -86,6 +86,27 @@ ACR_SCALAR_FIELDS = {
     "warning_to_destination", "toc_date", "toc_time", "toc_other_text",
 }
 ACR_FIELDS = ACR_SCALAR_FIELDS | CHECKBOX_FIELDS
+
+REQUIRED_EXTRACTION_FIELDS = frozenset({
+    "first_name", "last_name", "age", "dob", "occurrence_date",
+    "chief_complaint", "incident_history",
+})
+REQUIRED_EXTRACTION_FIELDS_BY_SECTION = {
+    "demographics": frozenset({"first_name", "last_name", "age", "dob"}),
+    "clinical-information": frozenset({
+        "occurrence_date", "chief_complaint", "incident_history",
+    }),
+    "cardiac-arrest-information": frozenset({
+        "arrest_witnessed_by", "arrest_witnessed_date",
+    }),
+    "physical-exam": frozenset({"general_appearance"}),
+    "billing-information": frozenset({"ambulance_use"}),
+    "clinical-treatment-procedures": frozenset({"procedures"}),
+    "crew": frozenset({"para1_name"}),
+    "general-administration": frozenset({"vehicle_no"}),
+    "call-events": frozenset({"ev_call_received"}),
+    "remarks-disposition": frozenset({"remarks"}),
+}
 
 ACR_SECTION_FIELDS = {
     "demographics": frozenset({
@@ -173,8 +194,10 @@ def _build_extraction_prompt(raw_transcript: str, fields=None) -> str:
     procedure_fields = ", ".join(sorted(PROCEDURE_FIELDS))
     parts = [f"""
 You extract only facts explicitly stated in a paramedic's prehospital report.
-Return one object using the exact field names in the supplied JSON schema. Include
-every required field. Use an empty string for unavailable text fields, false for
+Return one JSON object using exact field names from the supplied schema. Include
+every required field in the schema. Populate every other field supported by the
+transcript and omit unsupported fields; do not return an empty object when facts
+match the listed fields.
 Never guess, infer a negative clinical finding, or add prose.
 """]
     if scalar_fields:
@@ -189,11 +212,28 @@ Never guess, infer a negative clinical finding, or add prose.
             'For peripheral_edema and pedal_pulse, use the exact radio choice "absent" '
             'or "present".'
         )
+    if "arrest_witnessed_by" in fields:
+        parts.append(
+            'For arrest_witnessed_by, use "unwitnessed" when the transcript says the '
+            'arrest was not witnessed. Put the arrest date in arrest_witnessed_date.'
+        )
     if "procedures" in fields:
         parts.append(
             f"""The procedures field is a list of rows using only these procedure columns:
-{procedure_fields}. Each procedure row must include every listed column, using an
-empty string when a value is unavailable. Do not add other fields."""
+{procedure_fields}. Include only columns supported by the transcript. Do not add
+empty procedure rows or unsupported fields. Create separate rows for each treatment,
+medication administration, repeat vital-sign set, and patient assessment. Never put
+all events into one row. For a medication, set procedure to its exact ACR medication
+code, reading to the drug name when useful, and fill dose, route, and time. Use code
+615 for Nitroglycerin (not 700), code 010 for vital signs, and code 020 for patient
+assessment. For a vital-sign row, put BP, pulse_rate, resp_rate, spo2, gcs, and time
+in their matching columns; put oxygen details such as "2 L nasal cannula" in reading.
+For a pain reassessment, use a 020 row with pain set to the new score and reading
+describing the change. Example: 14:30 repeat vitals go in a 010 row; 0.4 mg
+Nitroglycerin sublingual at 14:31 goes in a separate 615 row with dose "0.4 mg",
+route "sublingual", and time "14:31"; pain improved from 8/10 to 4/10 goes in a
+separate 020 row with pain "4" and the improvement in reading. Preserve every
+documented repeat dose as its own row."""
         )
     parts.append("""
 Use ACR date format YYYY-MM-DD and time format HH:MM. Use "M" or "F" for sex only
@@ -203,7 +243,8 @@ for another drug and put its name in reading. Use code "010" for a row of vital 
 and "025" for a blood glucose reading. Preserve units in glucose readings and doses.
 For a vitals row, use ACR names (pulse_rate, bp, spo2, gcs, resp_rate). Keep
 incident_history concise, chronological, and factual. Do not create empty procedure
-rows. If nothing can be safely extracted, return empty values as required by the schema.
+rows. Put a patient's given and family names in first_name and last_name, and
+normalize spoken dates to YYYY-MM-DD.
 
 Transcript:
 """)
@@ -226,14 +267,21 @@ def build_acr_schema(fields=None) -> dict:
                 "properties": {
                     field: {"type": "string"} for field in sorted(PROCEDURE_FIELDS)
                 },
-                "required": sorted(PROCEDURE_FIELDS),
+                "required": ["procedure"],
                 "additionalProperties": False,
             },
         }
+    required = fields & REQUIRED_EXTRACTION_FIELDS
+    if "procedures" in fields:
+        required.add("procedures")
+    for section, section_fields in ACR_SECTION_FIELDS.items():
+        if fields == section_fields:
+            required = fields & REQUIRED_EXTRACTION_FIELDS_BY_SECTION[section]
+            break
     return {
         "type": "object",
         "properties": properties,
-        "required": sorted(properties),
+        "required": sorted(required),
         "additionalProperties": False,
     }
 
@@ -241,9 +289,9 @@ def build_acr_schema(fields=None) -> dict:
 _ACR_SYSTEM_PROMPT = (
     "You extract documented facts from paramedic transcripts. "
     "Never invent missing information. Use only fields in the supplied schema. "
-    "Do not infer examination findings from normal expectations. Use empty strings "
-    "for unavailable text fields and false for unchecked boolean fields. "
-    "Return only the schema."
+    "Do not infer examination findings from normal expectations. Include every "
+    "required field, using an empty string only when that field's fact is unavailable. "
+    "Include all other supported fields. Return only a JSON object matching the schema."
 )
 
 

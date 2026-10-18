@@ -323,6 +323,57 @@ class ScribeTextInputTests(unittest.TestCase):
             "test-id", {"chief_complaint": "chest pain"}
         )
 
+    def test_scribe_update_preserves_vitals_pain_and_each_medication_procedure_row(self):
+        procedures = [
+            {
+                "procedure": "010",
+                "time": "14:30",
+                "bp": "138/82",
+                "pulse_rate": "88",
+                "resp_rate": "18",
+                "spo2": "97%",
+                "gcs": "15",
+                "reading": "2 L oxygen via nasal cannula",
+            },
+            {
+                "procedure": "615",
+                "time": "14:31",
+                "reading": "Nitroglycerin",
+                "dose": "0.4 mg",
+                "route": "sublingual",
+            },
+            {
+                "procedure": "020",
+                "time": "14:30",
+                "pain": "4",
+                "reading": "Improved from 8/10 after initial nitroglycerin",
+            },
+            {
+                "procedure": "615",
+                "time": "14:20",
+                "reading": "Nitroglycerin",
+                "dose": "0.4 mg",
+                "route": "sublingual",
+            },
+        ]
+        with (
+            patch.dict(app.app.config, {"TEST_AUDIO_IMPORT": True}),
+            patch.object(app, "REMOTE_MODEL_CONFIG", None),
+            patch(
+                "prehospital_scribe.extract_data_with_llm",
+                return_value={"procedures": procedures},
+            ),
+        ):
+            response = self.client.post(
+                "/api/encounters/test-id/text",
+                json={"transcript": "Transport update at 14:30."},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.store.apply_scribe_update.assert_called_once_with(
+            "test-id", {"procedures": procedures}
+        )
+
     def test_test_mode_audio_returns_transcript_without_calling_llm(self):
         transcribe = Mock(return_value="Patient reports chest pain.")
         stt_module = SimpleNamespace(transcribe_audio_file=transcribe)

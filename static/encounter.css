@@ -45,6 +45,8 @@ body.transcript-open { margin-right: min(440px, 40vw); transition: margin-right 
 .transcript-sidebar[hidden] { display: none; }
 .transcript-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .transcript-heading h2 { margin: 0; font-size: 18px; }
+.transcript-heading-actions { display: flex; align-items: center; gap: 8px; }
+.transcript-stop-record[hidden] { display: none; }
 .transcript-status { margin: 0; color: #536176; font-size: 13px; }
 .transcript-label { font-size: 12px; font-weight: 700; color: #536176; }
 .transcript-sidebar textarea {
