@@ -76,9 +76,12 @@
     $('sel-title').textContent = 'Incident ' + e.incident_no;
     $('sel-sub').textContent = [e.name, e.chief_complaint].filter(Boolean).join(' · ') || (e.address[0] || '');
     $('act-open').href = cfg.page + '/' + encodeURIComponent(e.encounter_id);
+    $('act-record').disabled = !!e.signed && $('act-record').dataset.state !== 'recording';
+    $('act-record').title = e.signed ? 'Reopen this report before recording an update' : 'Record an update for this incident';
   }
 
   function select(id) {
+    if ($('act-record').dataset.state && $('act-record').dataset.state !== 'idle') return;
     selected = id === selected ? null : id;
     Array.prototype.forEach.call(listEl.children, function (li) {
       var on = li.dataset.id === selected;
@@ -93,6 +96,31 @@
     clearTimeout(toast.h); toast.h = setTimeout(function () { t.hidden = true; }, 2600);
   }
 
+  ACRAudio.attach($('act-record'), {
+    isDisabled: function () {
+      var e = current();
+      return !e || !!e.signed;
+    },
+    url: function () {
+      var e = current();
+      if (!e) throw new Error('Select an incident before recording.');
+      return cfg.api + '/' + encodeURIComponent(e.encounter_id) + '/audio';
+    },
+    onResult: function (result) {
+      toast('Voice update saved for incident ' + result.incident_no + '.');
+      return load();
+    },
+    onError: function (error) { toast('Voice update failed – ' + error.message, true); }
+  });
+  bar.addEventListener('click', function (event) {
+    var state = $('act-record').dataset.state;
+    if (state && state !== 'idle' && !event.target.closest('#act-record')) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      toast('Stop recording before switching incidents.', true);
+    }
+  }, true);
+
   function load() {
     return fetch(cfg.api, { headers: { Accept: 'application/json' } })
       .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
@@ -106,13 +134,19 @@
 
   /* ---------- events ---------- */
   listEl.addEventListener('click', function (ev) {
+    if ($('act-record').dataset.state && $('act-record').dataset.state !== 'idle') {
+      if (ev.target.closest('a.go')) ev.preventDefault();
+      return;
+    }
     if (ev.target.closest('a.go')) return;             // arrow button navigates
     var li = ev.target.closest('.card'); if (li) select(li.dataset.id);
   });
   listEl.addEventListener('dblclick', function (ev) {
+    if ($('act-record').dataset.state && $('act-record').dataset.state !== 'idle') return;
     var li = ev.target.closest('.card'); if (li) location.href = cfg.page + '/' + encodeURIComponent(li.dataset.id);
   });
   listEl.addEventListener('keydown', function (ev) {
+    if ($('act-record').dataset.state && $('act-record').dataset.state !== 'idle') return;
     var li = ev.target.closest('.card'); if (!li) return;
     if (ev.key === ' ') { ev.preventDefault(); select(li.dataset.id); }
     else if (ev.key === 'Enter' && ev.target === li) location.href = cfg.page + '/' + encodeURIComponent(li.dataset.id);
@@ -127,8 +161,11 @@
     });
   });
 
-  $('act-clear').addEventListener('click', function () { select(selected); });
-  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && selected && !$('confirm').open) select(selected); });
+  $('act-clear').addEventListener('click', function () { if ($('act-record').dataset.state === 'idle') select(selected); });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && selected && !$('confirm').open &&
+        (!$('act-record').dataset.state || $('act-record').dataset.state === 'idle')) select(selected);
+  });
 
   // remove
   var dlg = $('confirm');

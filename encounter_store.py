@@ -25,8 +25,6 @@ scribe's alerts (missing allergies, active protocols, ...) are always current.  
 that was created by the scribe pipeline and has no ``acr`` block yet is shown in the form by
 mapping its PatientRecord fields back onto form fields.
 """
-import contextlib
-import io
 import json
 import os
 import re
@@ -39,7 +37,6 @@ from prehospital_scribe import (
     MedicationAdministered,
     PatientRecord,
     VitalSign,
-    extract_structured_record,
     run_protocol_and_validation_engine,
 )
 from reference_codes import REFERENCE
@@ -114,7 +111,9 @@ def form_to_record(acr, prev=None):
         code, when = _text(row.get("procedure")), _hm(row.get("time"))
         if code in MED_NAMES:
             meds.append(MedicationAdministered(
-                drug=MED_NAMES[code], dose=_text(row.get("dose")),
+                drug=(_text(row.get("reading")) if code == PROC_OTHER_DRUG and row.get("reading")
+                      else MED_NAMES[code]),
+                dose=_text(row.get("dose")),
                 route=_text(row.get("route")), timestamp=when))
         glucose = _text(row.get("reading")) if code == PROC_GLUCOSE else ""
         hr, spo2, gcs, bp = (_int(row.get("pulse_rate")), _int(row.get("spo2")),
@@ -301,6 +300,42 @@ class EncounterStore:
             self._write(encs)
             return enc
 
+    def apply_scribe_update(self, eid, updates):
+        """Merge sparse speech fields into a saved ACR without discarding prior form data."""
+        with self._lock:
+            encs = self._read()
+            enc = self._find(encs, eid)
+            if enc is None:
+                return None
+            if enc.get("paramedic_signed_off"):
+                raise PermissionError("reopen this report before adding a voice update")
+
+            acr = merged_form(enc)
+            procedures = updates.get("procedures", [])
+            for key, value in updates.items():
+                if key == "procedures" or value in (None, "", False):
+                    continue
+                if key == "incident_history":
+                    prior = _text(acr.get(key))
+                    stamp = datetime.now().astimezone().strftime("%H:%M")
+                    value = "\n".join(part for part in (prior, f"[{stamp}] {value}") if part)
+                acr[key] = value
+
+            if updates.get("allergies_nka"):
+                acr["allergies_other"] = False
+                acr["allergies_details"] = ""
+            elif updates.get("allergies_other") or updates.get("allergies_details"):
+                acr["allergies_nka"] = False
+
+            if procedures:
+                acr["procedures"] = [*(acr.get("procedures") or []), *procedures]
+
+            rec = form_to_record(acr, _record_of(enc))
+            enc.update(rec.model_dump())
+            enc["acr"], enc["updated_at"] = acr, now_iso()
+            self._write(encs)
+            return enc
+
     def delete(self, eid):
         with self._lock:
             encs = self._read()
@@ -313,14 +348,15 @@ class EncounterStore:
 
 # -------------------------------------------------------------------- seed
 def _seed_encounters():
-    """First-run sample data (fictional).  One row comes straight from the scribe pipeline."""
-    transcript = (
-        "Patient is a 65-year-old male complaining of acute chest pain starting "
-        "about 20 minutes ago. Vitals at 14:40: BP 140 over 90, heart rate 110, "
-        "SpO2 94 percent, GCS 15. Administered 160 milligrams of Aspirin orally at 14:42."
-    )
-    with contextlib.redirect_stdout(io.StringIO()):           # the scribe prints as it works
-        scribe_rec = run_protocol_and_validation_engine(extract_structured_record(transcript))
+    """First-run sample data (fictional), with deterministic offline scribe data."""
+    scribe_rec = run_protocol_and_validation_engine(PatientRecord(
+        chief_complaint="Acute chest pain",
+        onset="2026-10-17 14:15",
+        allergies=["NKA"],
+        medications_administered=[MedicationAdministered(
+            drug="Aspirin", dose="160 mg", route="Oral", timestamp="14:42")],
+        vitals_stream=[VitalSign(timestamp="14:40", bp="140/90", hr=110, spo2=94, gcs=15)],
+    ))
     ts = now_iso()
 
     def from_form(n, acr, signed=False, day="2026-10-17"):

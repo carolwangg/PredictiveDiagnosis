@@ -1,249 +1,467 @@
-# prehospital_scribe.py
-from typing import List, Optional
-from pydantic import BaseModel, Field
-import uuid
+"""Speech extraction for the Ambulance Call Report form and CLI scribe."""
+from datetime import datetime
 import json
 import os
-from datetime import datetime
-import ollama
+from pathlib import Path
+import tempfile
+from typing import Optional
+import uuid
 
-# Import the Push-to-Talk STT module functions
-from modules.stt import listen_for_speech, transcribe_audio
+from pydantic import BaseModel, Field
 
+from reference_codes import REFERENCE
 
-# ==========================================
-# 1. STRICT CHRONOLOGICAL DATA MODELS
-# ==========================================
+BASE_DIR = Path(__file__).resolve().parent
+MASTER_DB_FILE = BASE_DIR / "ems_encounters.json"
+FEEDBACK_LOG_FILE = BASE_DIR / "feedback_log.json"
+
+PROCEDURE_FIELDS = {
+    "time", "procedure", "crew", "reading", "result_code", "resp_rate",
+    "pulse_rate", "bp", "temp", "spo2", "pupil_r", "pupil_l", "dose",
+    "route", "gcs", "pain",
+}
+CHECKBOX_FIELDS = {
+    "allergies_nka", "allergies_cno", "allergies_other",
+    "history_previously_healthy", "history_cardiac", "history_respiratory",
+    "history_seizure", "history_diabetes", "history_psychiatric",
+    "history_anaphylaxis", "history_cancer", "history_stroke_tia",
+    "history_hypertension", "history_other", "history_cno",
+    "meds_nitrates", "meds_asa", "meds_salbutamol", "meds_furosemide",
+    "meds_insulin_oral_diabetic", "meds_pde_inhibitors", "meds_other",
+    "meds_none", "meds_cno", "blood_thinners", "skin_colour_flushed",
+    "skin_colour_pale", "skin_colour_cyanosis", "skin_colour_jaundice",
+    "skin_colour_unremarkable", "skin_condition_dry", "skin_condition_clammy",
+    "skin_condition_diaphoretic", "skin_condition_unremarkable",
+    "air_entry_bilateral", "air_entry_decreased_r", "air_entry_decreased_l",
+    "breath_clear", "breath_wheezes", "breath_crackles", "breath_rub",
+    "breath_absent", "abdomen_soft", "abdomen_rigid", "abdomen_distended",
+    "abdomen_tender", "abdomen_mass", "abdomen_pulsatile", "abdomen_ru",
+    "abdomen_lu", "abdomen_ll", "abdomen_rl", "abdomen_center",
+    "back_pelvis_unremarkable", "extremities_unremarkable",
+}
+ACR_FIELDS = {
+    "first_name", "last_name", "age", "sex", "mail_street_no", "mail_street_name",
+    "mail_city", "mail_province", "mail_postal_code", "pickup_location",
+    "call_date", "occurrence_date",
+    "occurrence_time", "chief_complaint", "incident_history", "remarks",
+    "allergies_nka", "allergies_cno", "allergies_other", "allergies_details",
+    "history_previously_healthy", "history_cardiac", "history_respiratory",
+    "history_seizure", "history_diabetes", "history_psychiatric",
+    "history_anaphylaxis", "history_cancer", "history_stroke_tia",
+    "history_hypertension", "history_other", "history_cno", "history_details",
+    "meds_nitrates", "meds_asa", "meds_salbutamol", "meds_furosemide",
+    "meds_insulin_oral_diabetic", "meds_pde_inhibitors", "meds_other",
+    "meds_none", "meds_cno", "medications_details", "general_appearance",
+    "blood_thinners", "skin_colour_flushed", "skin_colour_pale",
+    "skin_colour_cyanosis", "skin_colour_jaundice", "skin_colour_unremarkable",
+    "skin_condition_dry", "skin_condition_clammy", "skin_condition_diaphoretic",
+    "skin_condition_unremarkable", "air_entry_bilateral", "air_entry_decreased_r",
+    "air_entry_decreased_l", "breath_clear", "breath_wheezes", "breath_crackles",
+    "breath_rub", "breath_absent", "abdomen_soft", "abdomen_rigid",
+    "abdomen_distended", "abdomen_tender", "abdomen_mass", "abdomen_pulsatile",
+    "abdomen_ru", "abdomen_lu", "abdomen_ll", "abdomen_rl", "abdomen_center",
+    "back_pelvis_unremarkable", "extremities_unremarkable", "peripheral_edema",
+    "pedal_pulse", "primary_problem", "problem_code",
+}
+MEDICATION_NAMES = {}
+for section_title, section_lines in REFERENCE:
+    if section_title == "Medications":
+        for line in section_lines:
+            code, _, label = line.partition("|")
+            if code.isdigit():
+                MEDICATION_NAMES[code] = label
+
 
 class VitalSign(BaseModel):
-    timestamp: Optional[str] = Field(None, description="Time vitals were recorded")
-    bp: Optional[str] = Field(None, description="Blood Pressure")
-    hr: Optional[int] = Field(None, description="Heart Rate in BPM")
-    spo2: Optional[int] = Field(None, description="Oxygen Saturation percentage")
-    gcs: Optional[int] = Field(None, description="Glasgow Coma Scale total (3-15)")
-    blood_glucose: Optional[str] = Field(None, description="Blood glucose level")
+    timestamp: Optional[str] = None
+    bp: Optional[str] = None
+    hr: Optional[int] = None
+    spo2: Optional[int] = None
+    gcs: Optional[int] = None
+    blood_glucose: Optional[str] = None
 
 
 class MedicationAdministered(BaseModel):
     drug: str
-    dose: str
-    route: str
+    dose: str = ""
+    route: str = ""
     timestamp: Optional[str] = None
-
-
-class ClinicalEvent(BaseModel):
-    event_sequence: int
-    timestamp: str
-    raw_transcript: str
-    noted_complaint: Optional[str] = None
-    new_vitals: List[VitalSign] = Field(default_factory=list)
-    new_medications: List[MedicationAdministered] = Field(default_factory=list)
 
 
 class PatientRecord(BaseModel):
     encounter_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    patient_age: Optional[int] = None
-    patient_gender: Optional[str] = None
-    allergies: List[str] = Field(default_factory=list)
-
-    # Chronological timeline of events during the call
-    timeline: List[ClinicalEvent] = Field(default_factory=list)
-
-    # Active protocols and warnings based on the latest state
-    active_protocols: List[dict] = Field(default_factory=list)
-    missing_fields: List[str] = Field(default_factory=list)
+    chief_complaint: Optional[str] = None
+    onset: Optional[str] = None
+    allergies: list[str] = Field(default_factory=list)
+    medications_administered: list[MedicationAdministered] = Field(default_factory=list)
+    vitals_stream: list[VitalSign] = Field(default_factory=list)
+    protocol_triggers: list[dict] = Field(default_factory=list)
+    missing_fields: list[str] = Field(default_factory=list)
     paramedic_signed_off: bool = False
 
 
-# ==========================================
-# 2. MASTER JSON DATABASE STORAGE HELPER
-# ==========================================
-
-MASTER_DB_FILE = "ems_encounters.json"
+def _as_text(value):
+    return str(value).strip() if value not in (None, False) else ""
 
 
-def save_record_to_master_json(record: PatientRecord) -> str:
-    """Saves or updates the current patient record inside the central master JSON database."""
-    database = {}
-
-    if os.path.exists(MASTER_DB_FILE):
-        try:
-            with open(MASTER_DB_FILE, "r", encoding="utf-8") as f:
-                database = json.load(f)
-        except json.JSONDecodeError:
-            database = {}
-
-    database[record.encounter_id] = record.model_dump()
-
-    with open(MASTER_DB_FILE, "w", encoding="utf-8") as f:
-        json.dump(database, f, indent=4)
-
-    print(f"[💾] Master database updated -> {MASTER_DB_FILE} (Encounter: {record.encounter_id[:8]})")
-    return MASTER_DB_FILE
+def _int_or_none(value):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
-# ==========================================
-# 3. LOCAL LLM STRUCTURED EXTRACTION ENGINE
-# ==========================================
+def _validate_extraction(extraction):
+    if not isinstance(extraction, dict):
+        raise ValueError("Scribe response must be a JSON object.")
+    unknown = set(extraction) - ACR_FIELDS - {"procedures"}
+    if unknown:
+        raise ValueError("Scribe returned unsupported ACR fields: " + ", ".join(sorted(unknown)))
+    for key in list(extraction):
+        value = extraction[key]
+        if value is None or value == "":
+            del extraction[key]
+        elif key in CHECKBOX_FIELDS:
+            if not isinstance(value, bool):
+                raise ValueError(f"Scribe field {key} must be a boolean.")
+        elif key != "procedures" and (
+                isinstance(value, bool) or not isinstance(value, (str, int, float))):
+            raise ValueError(f"Scribe field {key} must be a scalar.")
+    if "procedures" in extraction:
+        procedures = extraction["procedures"]
+        if not isinstance(procedures, list):
+            raise ValueError("Scribe procedures must be a list.")
+        normalized_rows = []
+        for row in procedures:
+            if not isinstance(row, dict) or set(row) - PROCEDURE_FIELDS:
+                raise ValueError("Scribe returned a malformed procedure row.")
+            normalized = {}
+            for key, value in row.items():
+                if value is None or value == "":
+                    continue
+                if not isinstance(value, (str, int, float)) or isinstance(value, bool):
+                    raise ValueError(f"Procedure field {key} must be a scalar.")
+                normalized[key] = str(value)
+            if normalized:
+                normalized_rows.append(normalized)
+        extraction["procedures"] = normalized_rows
+    return extraction
+
 
 def extract_data_with_llm(raw_transcript: str) -> dict:
-    """Uses a local LLM (Ollama) to extract structured clinical fields with strict field separation."""
-    print("[🤖] Running local LLM extraction...")
+    """Return sparse, flat ACR fields and procedure rows from a voice transcript."""
+    if not raw_transcript.strip():
+        raise ValueError("Cannot extract ACR fields from an empty transcript.")
 
     prompt = f"""
-    You are an expert medical data extraction assistant for prehospital EMS documentation. 
-    Analyze the following paramedic voice transcript and extract structured clinical fields into strict JSON format.
+You extract only facts explicitly stated in a paramedic's prehospital report.
+Return one valid JSON object using the exact flat field names used by the Ambulance
+Call Report (ACR) web form. Do not add a wrapper object or explanatory prose.
+Only include fields supported by this transcript. Omit unknown or unstated fields;
+never guess, infer a negative finding, or overwrite a value by returning an empty value.
 
-    Transcript: "{raw_transcript}"
+The available form fields are:
+demographics: first_name, last_name, age, sex, mail_street_no, mail_street_name,
+mail_city, mail_province, mail_postal_code, pickup_location, call_date, occurrence_date,
+occurrence_time;
+clinical: chief_complaint, incident_history, remarks, primary_problem, problem_code;
+allergies: allergies_nka, allergies_cno, allergies_other, allergies_details;
+medical history: history_previously_healthy, history_cardiac, history_respiratory,
+history_seizure, history_diabetes, history_psychiatric, history_anaphylaxis,
+history_cancer, history_stroke_tia, history_hypertension, history_other,
+history_cno, history_details;
+medication checkboxes: meds_nitrates, meds_asa, meds_salbutamol, meds_furosemide,
+meds_insulin_oral_diabetic, meds_pde_inhibitors, meds_other, meds_none, meds_cno,
+medications_details;
+exam: general_appearance, blood_thinners, skin_colour_flushed, skin_colour_pale,
+skin_colour_cyanosis, skin_colour_jaundice, skin_colour_unremarkable,
+skin_condition_dry, skin_condition_clammy, skin_condition_diaphoretic,
+skin_condition_unremarkable, air_entry_bilateral, air_entry_decreased_r,
+air_entry_decreased_l, breath_clear, breath_wheezes, breath_crackles, breath_rub,
+breath_absent, abdomen_soft, abdomen_rigid, abdomen_distended, abdomen_tender,
+abdomen_mass, abdomen_pulsatile, abdomen_ru, abdomen_lu, abdomen_ll, abdomen_rl,
+abdomen_center, back_pelvis_unremarkable, extremities_unremarkable,
+peripheral_edema, pedal_pulse;
+and procedures: procedures, a list of rows with only these keys:
+time, procedure, crew, reading, result_code, resp_rate, pulse_rate, bp, temp,
+spo2, pupil_r, pupil_l, dose, route, gcs, pain.
 
-    Strict Extraction Rules:
-    - "patient_age": extract integer age or null.
-    - "patient_gender": extract string ("Male", "Female") or null.
-    - "allergies": extract list of specific allergies. If the transcript states "no known drug allergies" or "NKDA", include "No Known Allergies".
-    - "noted_complaint": short summary of chief complaint or status update.
-    - "new_vitals": list of objects for any explicitly recorded vitals:
-      - "timestamp": string time (e.g., "1610") or null.
-      - "bp": string blood pressure ONLY (e.g., "120/80"). If blood pressure is NOT mentioned in this specific update, it MUST be null. Do NOT put blood glucose here.
-      - "hr": integer heart rate or null.
-      - "spo2": integer oxygen saturation percentage or null.
-      - "gcs": integer Glasgow Coma Scale (3-15) or null.
-      - "blood_glucose": string blood glucose level with units (e.g., "6.4 mmol/L") or null. If blood glucose is NOT mentioned, it MUST be null.
-    - "new_medications": list of objects for administered medications (drug, dose, route, timestamp) or empty list.
+Use ACR date format YYYY-MM-DD and time format HH:MM. ACR checkboxes must be
+true only when the transcript explicitly supports them. Use the value "M" or "F"
+for sex when clear, otherwise the stated description. For an administered drug,
+add a procedure row with its medication procedure code when known; use code "700"
+for another drug and put its name in reading. Use code "010" for a row of vital
+signs and "025" for a blood glucose reading. Preserve units in glucose readings
+and doses. For a vitals row, use ACR names (pulse_rate, bp, spo2, gcs, resp_rate).
+Keep incident_history concise, chronological, and factual. Do not create empty
+procedure rows. If nothing can be safely extracted, return {{}}.
 
-    Return ONLY a valid JSON object matching these keys.
-    """
+Transcript:
+{json.dumps(raw_transcript)}
+"""
+    from ollama import chat
 
-    try:
-        response = ollama.chat(
-            model='llama3:latest',
-            messages=[{'role': 'user', 'content': prompt}],
-            format='json'
-        )
-        return json.loads(response['message']['content'])
-    except Exception as e:
-        print(f"[!] LLM Extraction Error: {e}")
-        return {}
-
-# ==========================================
-# 4. EVENT PROCESSOR & RULE ENGINE
-# ==========================================
-
-def process_new_audio_event(record: PatientRecord, raw_transcript: str) -> PatientRecord:
-    """Processes raw audio transcript via LLM, appends to timeline, and updates protocols."""
-    current_time = datetime.now().strftime("%H:%M:%S")
-    event_num = len(record.timeline) + 1
-
-    # 1. Extract structured data using local LLM
-    extracted_data = extract_data_with_llm(raw_transcript)
-
-    # Update global patient demographics if detected and not already set
-    if not record.patient_age and extracted_data.get("patient_age"):
-        record.patient_age = extracted_data.get("patient_age")
-    if not record.patient_gender and extracted_data.get("patient_gender"):
-        record.patient_gender = extracted_data.get("patient_gender")
-
-    # Merge allergies if found
-    for allergy in extracted_data.get("allergies", []):
-        if allergy not in record.allergies:
-            record.allergies.append(allergy)
-
-    # Build new vitals sub-objects with fallback timestamp
-    vitals_list = []
-    for v in extracted_data.get("new_vitals", []):
-        if not v.get("timestamp"):
-            v["timestamp"] = current_time
-        vitals_list.append(VitalSign(**v))
-
-    # Build new medications sub-objects
-    meds_list = [MedicationAdministered(**m) for m in extracted_data.get("new_medications", [])]
-
-    # Create chronological clinical event
-    new_event = ClinicalEvent(
-        event_sequence=event_num,
-        timestamp=current_time,
-        raw_transcript=raw_transcript,
-        noted_complaint=extracted_data.get("noted_complaint", "Status update"),
-        new_vitals=vitals_list,
-        new_medications=meds_list
+    response = chat(
+        model="llama3:latest",
+        messages=[{"role": "user", "content": prompt}],
+        format="json",
     )
+    content = response["message"]["content"]
+    return _validate_extraction(json.loads(content))
 
-    record.timeline.append(new_event)
 
-    # 2. Protocol & Safety Rule Engine
+def _record_from_acr(acr: dict, record: Optional[PatientRecord] = None) -> PatientRecord:
+    updated = record.model_copy(deep=True) if record else PatientRecord()
+    updated.chief_complaint = _as_text(acr.get("chief_complaint")) or None
+    date = _as_text(acr.get("occurrence_date"))
+    time = _as_text(acr.get("occurrence_time"))
+    updated.onset = " ".join(part for part in (date, time) if part) or None
+
+    allergies = []
+    if acr.get("allergies_nka"):
+        allergies.append("NKA")
+    if acr.get("allergies_cno"):
+        allergies.append("CNO")
+    if acr.get("allergies_other") or acr.get("allergies_details"):
+        allergies.extend(
+            item.strip() for item in str(acr.get("allergies_details") or "").split(",")
+            if item.strip()
+        )
+        if not allergies:
+            allergies.append("Other (see details)")
+    updated.allergies = allergies
+
+    medication_rows, vital_rows = [], []
+    for row in acr.get("procedures", []):
+        code = _as_text(row.get("procedure"))
+        when = _as_text(row.get("time")) or None
+        drug_name = _as_text(row.get("reading")) if code == "700" else MEDICATION_NAMES.get(code)
+        if drug_name:
+            medication_rows.append(MedicationAdministered(
+                drug=drug_name, dose=_as_text(row.get("dose")),
+                route=_as_text(row.get("route")), timestamp=when,
+            ))
+        glucose = _as_text(row.get("reading")) if code == "025" else ""
+        hr = _int_or_none(row.get("pulse_rate"))
+        spo2 = _int_or_none(row.get("spo2"))
+        gcs = _int_or_none(row.get("gcs"))
+        bp = _as_text(row.get("bp")) or None
+        if any(value is not None for value in (hr, spo2, gcs, bp)) or glucose:
+            vital_rows.append(VitalSign(
+                timestamp=when, bp=bp, hr=hr, spo2=spo2, gcs=gcs,
+                blood_glucose=glucose or None,
+            ))
+    if medication_rows:
+        updated.medications_administered = medication_rows
+    if vital_rows:
+        updated.vitals_stream = vital_rows
+    return updated
+
+
+def run_protocol_and_validation_engine(record: PatientRecord) -> PatientRecord:
+    """Refresh the form-facing protocol alerts and required-field notices."""
+    complaint = (record.chief_complaint or "").lower()
     triggers = []
-    for event in record.timeline:
-        c = (event.noted_complaint or "").lower()
-        t_text = event.raw_transcript.lower()
-
-        if "stops breathing" in c or "arrest" in c or "unresponsive" in t_text or "stopped breathing" in t_text:
-            triggers.append({
-                "protocol": "CARDIAC / RESPIRATORY ARREST PROTOCOL",
-                "status": "URGENT ACTIVE",
-                "required_actions": ["Begin CPR / BVM ventilation", "Prepare defibrillator / AED",
-                                     "Trauma bay red activation"]
-            })
-        elif "chest pain" in c or "chest pain" in t_text:
-            triggers.append({
-                "protocol": "ACS / STEMI Protocol",
-                "status": "Active",
-                "required_actions": ["12-Lead ECG", "Aspirin administration verified"]
-            })
-
-    # Deduplicate triggers safely
-    unique_triggers = []
-    for trigger in triggers:
-        if trigger not in unique_triggers:
-            unique_triggers.append(trigger)
-    record.active_protocols = unique_triggers
-
-    # Check missing fields
-    missing = []
-    if not record.allergies:
-        missing.append("Allergies not recorded (Required before ED handoff)")
-    record.missing_fields = missing
-
-    # 3. Save to Master JSON database
-    save_record_to_master_json(record)
-
+    if any(term in complaint for term in ("cardiac arrest", "respiratory arrest", "unresponsive")):
+        triggers.append({
+            "protocol": "CARDIAC / RESPIRATORY ARREST PROTOCOL",
+            "status": "URGENT ACTIVE",
+            "required_actions": ["Begin CPR / BVM ventilation", "Prepare defibrillator / AED"],
+        })
+    elif "chest pain" in complaint:
+        triggers.append({
+            "protocol": "ACS / STEMI Protocol",
+            "status": "Active",
+            "required_actions": ["12-Lead ECG", "Verify aspirin administration"],
+        })
+    record.protocol_triggers = triggers
+    record.missing_fields = [] if record.allergies else [
+        "Allergies not recorded (Required before ED handoff)"
+    ]
     return record
 
 
-# ==========================================
-# 5. MAIN EXECUTION LOOP
-# ==========================================
+def extract_structured_record(raw_transcript: str) -> PatientRecord:
+    """Extract an ACR-compatible record for callers that need the model form."""
+    return run_protocol_and_validation_engine(
+        _record_from_acr(extract_data_with_llm(raw_transcript))
+    )
 
-if __name__ == "__main__":
-    record = PatientRecord()
+
+def log_paramedic_feedback(transcript: str, ai_extraction: dict,
+                           human_correction: dict, reason: str):
+    entry = {
+        "timestamp": datetime.now().astimezone().isoformat(timespec="seconds"),
+        "raw_transcript": transcript,
+        "ai_predicted_extraction": ai_extraction,
+        "human_corrected_extraction": human_correction,
+        "correction_type": reason,
+    }
+    feedback = []
+    if FEEDBACK_LOG_FILE.exists():
+        feedback = json.loads(FEEDBACK_LOG_FILE.read_text(encoding="utf-8"))
+    feedback.append(entry)
+    FEEDBACK_LOG_FILE.write_text(json.dumps(feedback, indent=2), encoding="utf-8")
+
+
+def vet_extraction_with_paramedic(transcript: str, extracted_data: dict) -> tuple[dict, str, str]:
+    """Interactive review for the standalone CLI; the web flow never prompts."""
+    extracted_data = dict(extracted_data)
+    original_extracted = dict(extracted_data)
+    comments = ""
+    status = "Accepted"
+    print("\n" + "=" * 50)
+    print("PARAMEDIC REVIEW & VERIFICATION")
+    print("=" * 50)
+    print(f'Transcript: "{transcript}"\n')
+    print(json.dumps(extracted_data, indent=2))
+    while True:
+        print("\n[1] Accept  [2] Edit ACR field  [3] Add comment  [4] Reject extraction")
+        choice = input("Select review action (1-4): ").strip()
+        if choice == "1":
+            break
+        if choice == "2":
+            field = input("Enter exact ACR field name: ").strip()
+            if field in ACR_FIELDS:
+                value = input(f"Enter value for {field}: ").strip()
+                if field in CHECKBOX_FIELDS:
+                    if value.lower() not in ("true", "false"):
+                        print("Checkbox values must be true or false.")
+                        continue
+                    extracted_data[field] = value.lower() == "true"
+                else:
+                    extracted_data[field] = value
+                status = "Modified"
+            elif field == "procedures":
+                print("Edit procedures in the ACR form after this CLI session.")
+            else:
+                print("That is not an editable ACR field.")
+        elif choice == "3":
+            comments = input("Type paramedic clinical note/comment: ").strip()
+        elif choice == "4":
+            extracted_data = {
+                "incident_history": "Raw voice report (extraction rejected): " + transcript
+            }
+            status = "Manual Overridden"
+            break
+        else:
+            print("[!] Invalid option. Select 1, 2, 3, or 4.")
+    if status == "Modified":
+        log_paramedic_feedback(transcript, original_extracted, extracted_data, "Field Modification")
+    elif status == "Manual Overridden":
+        log_paramedic_feedback(transcript, original_extracted, extracted_data, "Full Rejection")
+    return _validate_extraction(extracted_data), comments, status
+
+
+def save_record_to_master_json(record: PatientRecord, acr: Optional[dict] = None) -> str:
+    """Upsert a CLI encounter in the same JSON layout used by the Flask app."""
+    data = json.loads(MASTER_DB_FILE.read_text(encoding="utf-8")) if MASTER_DB_FILE.exists() else {"encounters": []}
+    encounters = data.get("encounters", []) if isinstance(data, dict) else data
+    now = datetime.now().astimezone().isoformat(timespec="seconds")
+    existing = next((item for item in encounters if item.get("encounter_id") == record.encounter_id), None)
+    entry = {**record.model_dump(), "acr": acr or {},
+             "updated_at": now, "created_at": existing.get("created_at", now) if existing else now}
+    if existing:
+        existing.update(entry)
+    else:
+        used = [item.get("incident_no", 441366) for item in encounters
+                if isinstance(item.get("incident_no"), int)]
+        entry["incident_no"] = max(used + [441366]) + 1
+        encounters.append(entry)
+    fd, temp_name = tempfile.mkstemp(dir=MASTER_DB_FILE.parent, prefix=".ems_cli_", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as output:
+            json.dump({"encounters": encounters}, output, indent=2, ensure_ascii=False)
+        os.replace(temp_name, MASTER_DB_FILE)
+    finally:
+        if os.path.exists(temp_name):
+            os.unlink(temp_name)
+    print(f"[Saved] {MASTER_DB_FILE} (Incident {entry['incident_no']})")
+    return str(MASTER_DB_FILE)
+
+
+def process_new_audio_event(record: PatientRecord, raw_transcript: str,
+                            acr: Optional[dict] = None) -> PatientRecord:
+    """Extract, interactively review, and merge one CLI voice update."""
+    if acr is None:
+        acr = {}
+    original = extract_data_with_llm(raw_transcript)
+    updates, comments, _ = vet_extraction_with_paramedic(raw_transcript, original)
+    if comments:
+        previous = _as_text(acr.get("incident_history"))
+        acr["incident_history"] = "\n".join(part for part in (previous, comments) if part)
+    for key, value in updates.items():
+        if key == "procedures":
+            acr.setdefault("procedures", []).extend(value)
+        elif value not in (None, "", False):
+            acr[key] = value
+    updated = run_protocol_and_validation_engine(_record_from_acr(acr, record))
+    save_record_to_master_json(updated, acr)
+    return updated
+
+
+def print_ed_handoff_report(record: PatientRecord):
+    print("\n" + "🚨" * 20)
+    print("EMERGENCY DEPARTMENT PRE-ARRIVAL CLINICAL HANDOFF")
+    print("🚨" * 20)
+    print(f"ENCOUNTER ID  : {record.encounter_id}")
+    print(f"CHIEF COMPLAINT: {record.chief_complaint or 'Not recorded'}")
+    print(f"ONSET         : {record.onset or 'Not recorded'}")
+    print(f"ALLERGIES     : {', '.join(record.allergies) if record.allergies else 'NOT RECORDED'}")
+    print("\nACTIVE PROTOCOL ALERTS:")
+    for protocol in record.protocol_triggers:
+        print(f"  [{protocol['status']}] {protocol['protocol']}")
+        print(f"  Required actions: {', '.join(protocol['required_actions'])}")
+    if not record.protocol_triggers:
+        print("  None active")
+    print("\nVITALS:")
+    for vital in record.vitals_stream:
+        print(
+            f"  {vital.timestamp or 'Time unknown'}: BP {vital.bp or 'N/A'}, "
+            f"HR {vital.hr if vital.hr is not None else 'N/A'}, "
+            f"SpO2 {vital.spo2 if vital.spo2 is not None else 'N/A'}%, "
+            f"GCS {vital.gcs if vital.gcs is not None else 'N/A'}, "
+            f"BGL {vital.blood_glucose or 'N/A'}"
+        )
+    print("\nMEDICATIONS:")
+    for medication in record.medications_administered:
+        print(f"  {medication.drug} ({medication.dose}, {medication.route})")
+    print("\n" + "🚨" * 20 + "\n")
+
+
+def main():
+    """Run the original prompt-driven standalone scribe workflow."""
+    from modules.stt import listen_for_speech, transcribe_audio
+
+    record = run_protocol_and_validation_engine(PatientRecord())
+    acr = {}
     print(f"=== EMS ENCOUNTER STARTED (ID: {record.encounter_id}) ===")
-    save_record_to_master_json(record)
-
+    save_record_to_master_json(record, acr)
     while not record.paramedic_signed_off:
-        print(f"\n--- Transport Phase (Timeline Events Logged: {len(record.timeline)}) ---")
+        print(f"\n--- Transport Phase (Timeline Events Logged: {len(record.vitals_stream) + len(record.medications_administered)}) ---")
         print("Options: [1] Record voice update  [2] View Current ED Summary  [3] Sign & Transmit to ED")
         choice = input("Select an option (1, 2, or 3): ").strip()
-
         if choice == "1":
-            audio_array = listen_for_speech()
-            if audio_array.size > 0:
-                raw_transcript = transcribe_audio(audio_array)
-                print(f"\n[📝] Transcribed Text:\n\"{raw_transcript}\"\n")
-
-                if raw_transcript.strip():
-                    record = process_new_audio_event(record, raw_transcript)
-                    print("[✓] Event successfully processed by LLM and saved to master database.")
+            audio = listen_for_speech()
+            if audio.size:
+                transcript = transcribe_audio(audio)
+                print(f'\n[Transcribed Text]\n"{transcript}"\n')
+                if transcript.strip():
+                    record = process_new_audio_event(record, transcript, acr)
+                    print("[Saved] Voice update reviewed and added.")
             else:
                 print("[!] No audio captured.")
-
         elif choice == "2":
-            print("\n=== CURRENT LIVE PRE-ARRIVAL SUMMARY ===")
-            print(json.dumps(record.model_dump(), indent=4))
-
+            print_ed_handoff_report(record)
         elif choice == "3":
-            print("\n[Action] Paramedic finalizes review and signs off.")
             record.paramedic_signed_off = True
-            save_record_to_master_json(record)
+            save_record_to_master_json(record, acr)
+            print_ed_handoff_report(record)
             print("=== FINAL SIGNED RECORD TRANSMITTED TO ED ===")
-            print(json.dumps(record.model_dump(), indent=4))
             break
         else:
             print("[!] Invalid option. Select 1, 2, or 3.")
+
+
+if __name__ == "__main__":
+    main()

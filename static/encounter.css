@@ -30,6 +30,8 @@
 .btn:hover { background: #e8edf6; }
 .btn.primary { background: #2457d6; border-color: #2457d6; color: #fff; }
 .btn.primary:hover { background: #1b44ad; border-color: #1b44ad; }
+.btn.record { display: inline-flex; align-items: center; gap: 6px; color: #08714e; border-color: #9dd8c1; }
+.btn.record[data-state="recording"] { color: #fff; background: #c52c3b; border-color: #c52c3b; }
 .btn:disabled { opacity: .55; cursor: progress; }
 
 .alerts {

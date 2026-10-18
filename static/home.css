@@ -163,6 +163,10 @@ a.go:hover { background: var(--line-dark); }
   text-decoration: none; font-size: 14px; transition: background-color .12s;
 }
 .act:hover { background: #1a2644; }
+.act.record { background: #0b8058; }
+.act.record:hover { background: #096847; }
+.act.record[data-state="recording"] { background: #c52c3b; }
+.act:disabled { opacity: .5; cursor: not-allowed; }
 .act.del { color: #ff9aa6; }
 .act.open { background: #2f6bff; }
 .act.open:hover { background: #1f52d1; }

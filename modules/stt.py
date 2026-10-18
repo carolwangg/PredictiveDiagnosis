@@ -1,8 +1,8 @@
 # modules/stt.py
 import numpy as np
-import sounddevice as sd
 from faster_whisper import WhisperModel
 from config import SAMPLE_RATE, BLOCK_SIZE, WHISPER_MODEL_SIZE
+from pathlib import Path
 
 # Load faster-whisper model quantized to int8 for speed
 stt_model = WhisperModel(WHISPER_MODEL_SIZE, device="cpu", compute_type="int8")
@@ -15,6 +15,7 @@ def listen_for_speech() -> np.ndarray:
     """
     audio_frames = []
     is_recording = True
+    import sounddevice as sd
 
     def callback(indata, frames, time_info, status):
         if is_recording:
@@ -52,3 +53,13 @@ def transcribe_audio(audio_array: np.ndarray) -> str:
     segments, _ = stt_model.transcribe(audio_array, beam_size=1)
     text = " ".join([segment.text.strip() for segment in segments if segment.text.strip()]).strip()
     return text
+
+
+def transcribe_audio_file(audio_file: str | Path) -> str:
+    """Transcribe an uploaded browser recording in a format supported by faster-whisper."""
+    segments, _ = stt_model.transcribe(str(audio_file), beam_size=1)
+    return " ".join(
+        segment.text.strip()
+        for segment in segments
+        if segment.text.strip()
+    ).strip()

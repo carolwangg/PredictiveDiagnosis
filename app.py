@@ -1,6 +1,8 @@
 """Flask backend for the Ambulance Call Report app.
 
-Run:   pip install flask pydantic && python app.py        ->  http://127.0.0.1:5000/
+Run:   pip install flask pydantic ollama numpy faster-whisper sounddevice && python app.py
+       ollama pull llama3:latest
+       ->  http://127.0.0.1:5000/
 
 Pages
   /                     home: every call report in ems_encounters.json (add / open-to-update / remove)
@@ -14,9 +16,11 @@ JSON API  (all data lives in ems_encounters.json, see encounter_store.py)
   PUT    /api/encounters/<id>            replace the saved form; re-runs the scribe rule engine
   DELETE /api/encounters/<id>            remove
   POST   /api/encounters/<id>/sign       {"signed": true|false}  -> paramedic_signed_off
+  POST   /api/encounters/<id>/audio      multipart audio recording -> transcribed ACR field updates
 """
 import re
 from pathlib import Path
+import tempfile
 
 from flask import Flask, abort, jsonify, render_template, request
 from werkzeug.exceptions import HTTPException
@@ -28,7 +32,7 @@ DATA_FILE = BASE / "ems_encounters.json"
 DEFAULT_ROWS = 12
 
 app = Flask(__name__)
-app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024
+app.config["MAX_CONTENT_LENGTH"] = 25 * 1024 * 1024
 app.jinja_env.trim_blocks = True
 app.jinja_env.lstrip_blocks = True
 
@@ -160,6 +164,61 @@ def api_sign(eid):
     if enc is None:
         abort(404, "encounter not found")
     return jsonify(detail(enc))
+
+
+@app.post("/api/encounters/<eid>/audio")
+def api_audio_update(eid):
+    """Transcribe an uploaded browser recording and apply extracted ACR fields."""
+    eid = valid_id(eid)
+    enc = get_or_404(eid)
+    if enc.get("paramedic_signed_off"):
+        abort(409, "reopen this report before adding a voice update")
+
+    audio = request.files.get("audio")
+    if audio is None or not audio.filename:
+        abort(400, "audio recording is required")
+
+    extensions = {
+        "audio/webm": ".webm",
+        "video/webm": ".webm",
+        "audio/ogg": ".ogg",
+        "audio/mp4": ".mp4",
+        "audio/mpeg": ".mp3",
+        "audio/wav": ".wav",
+        "audio/x-wav": ".wav",
+    }
+    suffix = extensions.get(audio.mimetype)
+    if suffix is None:
+        abort(415, "unsupported audio format")
+
+    from prehospital_scribe import extract_data_with_llm
+    from modules.stt import transcribe_audio_file
+
+    with tempfile.TemporaryDirectory(prefix="acr_audio_") as temp_dir:
+        audio_path = Path(temp_dir) / ("recording" + suffix)
+        audio.save(audio_path)
+        if audio_path.stat().st_size == 0:
+            abort(400, "audio recording is empty")
+        transcript = transcribe_audio_file(audio_path)
+
+    if not transcript.strip():
+        abort(422, "no speech could be transcribed")
+    try:
+        extracted = extract_data_with_llm(transcript)
+    except ValueError as error:
+        abort(502, f"scribe returned invalid structured data: {error}")
+    updates = {key: value for key, value in extracted.items()
+               if key == "procedures" or value not in (None, "", False, [])}
+    if not updates:
+        abort(422, "no ACR fields could be extracted from the recording")
+
+    try:
+        updated = store.apply_scribe_update(eid, updates)
+    except PermissionError as error:
+        abort(409, str(error))
+    if updated is None:
+        abort(404, "encounter not found")
+    return jsonify({**detail(updated), "form": merged_form(updated)})
 
 
 if __name__ == "__main__":

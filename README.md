@@ -1,16 +1,27 @@
 # Ambulance Call Report – home page + editable form
 
-    pip install flask pydantic
+    pip install flask pydantic ollama numpy faster-whisper sounddevice
+    ollama pull llama3:latest
     python app.py                 # http://127.0.0.1:5000/
     python build_static.py        # -> acr_form.html (blank form only, no server / home page / saving)
 
 ## Flow
 * `/` **Home** – every report in `ems_encounters.json`, newest first. Search, filter (All / Unposted / Posted).
   Click a row to select it, then use the action bar: **Add report**, **Update report** (opens the form),
-  **Remove**. `New Incident` (top) and the row's arrow button also open the form. Double-click opens a row.
+  **Record audio**, **Remove**. Recording is available for unposted incidents; allow microphone access,
+  speak the update, then press **Stop recording**. The transcript is extracted into ACR fields and saved
+  automatically. `New Incident` (top) and the row's arrow button also open the form. Double-click opens a row.
 * `/encounters/new` – blank form; the record is created in the JSON file on first **Save**.
 * `/encounters/<id>` – the form prefilled from that encounter. **Save** (or Ctrl/Cmd+S) writes it back;
-  **Sign & transmit** sets `paramedic_signed_off` (button becomes **Reopen**).
+  **Record audio** adds a voice update to the open incident; **Sign & transmit** sets
+  `paramedic_signed_off` (button becomes **Reopen**).
+
+The web microphone is controlled by the browser, so the app must be served from localhost or another
+secure context and microphone permission must be granted. Stop recording to automatically transcribe
+with faster-whisper, extract sparse ACR form fields with local Ollama (`llama3:latest`), and merge
+those fields into the selected incident without clearing existing form data. Audio is uploaded only to
+this app, held temporarily for transcription, and then discarded. The standalone `python prehospital_scribe.py`
+workflow remains interactive in the terminal.
 
 ## ems_encounters.json
 `{"encounters": [ ... ]}` (a bare top-level list is also accepted). Each encounter has every field of
@@ -24,10 +35,12 @@ the source of truth.
 
 ## Files
     app.py               routes + JSON API          encounter_store.py   JSON store + form<->PatientRecord mapping
-    prehospital_scribe.py  unchanged (imported)     reference_codes.py   only the Medications table is used now
+    prehospital_scribe.py  audio/LLM extraction + interactive CLI
+    reference_codes.py   medication code mapping used by the store
     templates/home.html, acr.html                   static/home.css|js, encounter.css|js, acr.css|js
 
 ## API
-    GET /api/encounters   POST /api/encounters   GET|PUT|DELETE /api/encounters/<id>   POST /api/encounters/<id>/sign
+    GET /api/encounters   POST /api/encounters   GET|PUT|DELETE /api/encounters/<id>
+    POST /api/encounters/<id>/sign   POST /api/encounters/<id>/audio
 
 Form JS API (`ACR.*`) is unchanged, plus `ACR.getProcedures()`.

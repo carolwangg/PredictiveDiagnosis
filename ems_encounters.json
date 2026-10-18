@@ -1,385 +1,395 @@
 {
-  "encounters": [
-    {
-      "encounter_id": "da9e0485-a4fb-4121-b6dd-6beb9fe02732",
-      "chief_complaint": "Altered LOC, diabetic",
-      "onset": "2026-10-16 09:58",
-      "allergies": [
-        "NKA"
-      ],
-      "medications_administered": [
+    "encounters": [
         {
-          "drug": "Dextrose D50W",
-          "dose": "25 g",
-          "route": "IV",
-          "timestamp": "10:09"
-        }
-      ],
-      "vitals_stream": [
-        {
-          "timestamp": "10:04",
-          "bp": "126/78",
-          "hr": 96,
-          "spo2": 98,
-          "gcs": 13,
-          "blood_glucose": null
+            "encounter_id": "da9e0485-a4fb-4121-b6dd-6beb9fe02732",
+            "chief_complaint": "Altered LOC, diabetic",
+            "onset": "2026-10-16 09:58",
+            "allergies": [
+                "NKA"
+            ],
+            "medications_administered": [
+                {
+                    "drug": "Dextrose D50W",
+                    "dose": "25 g",
+                    "route": "IV",
+                    "timestamp": "10:09"
+                }
+            ],
+            "vitals_stream": [
+                {
+                    "timestamp": "10:04",
+                    "bp": "126/78",
+                    "hr": 96,
+                    "spo2": 98,
+                    "gcs": 13,
+                    "blood_glucose": null
+                },
+                {
+                    "timestamp": "10:05",
+                    "bp": null,
+                    "hr": null,
+                    "spo2": null,
+                    "gcs": null,
+                    "blood_glucose": "2.1 mmol/L"
+                },
+                {
+                    "timestamp": "10:22",
+                    "bp": null,
+                    "hr": null,
+                    "spo2": null,
+                    "gcs": null,
+                    "blood_glucose": "6.4 mmol/L"
+                },
+                {
+                    "timestamp": "10:23",
+                    "bp": "130/80",
+                    "hr": 84,
+                    "spo2": 99,
+                    "gcs": 15,
+                    "blood_glucose": null
+                },
+                {
+                    "timestamp": "10:24",
+                    "bp": null,
+                    "hr": null,
+                    "spo2": null,
+                    "gcs": null,
+                    "blood_glucose": "6.5 mmol/L"
+                }
+            ],
+            "protocol_triggers": [],
+            "missing_fields": [],
+            "paramedic_signed_off": true,
+            "incident_no": 441367,
+            "created_at": "2026-10-16T09:58:00",
+            "updated_at": "2026-10-17T23:54:30+00:00",
+            "acr": {
+                "service_name": "Example EMS",
+                "service_no": "123",
+                "mail_province": "ON",
+                "mail_country": "Canada",
+                "call_date": "2026-10-16",
+                "occurrence_date": "2026-10-16",
+                "occurrence_time": "09:58",
+                "last_name": "Rivera",
+                "first_name": "Sam",
+                "age": "52",
+                "sex": "M",
+                "mail_street_no": "974",
+                "mail_street_name": "Lerin Parkway",
+                "mail_city": "Toronto",
+                "mail_postal_code": "M0A 0A4",
+                "pickup_code": "R",
+                "chief_complaint": "Altered LOC, diabetic",
+                "history_diabetes": true,
+                "allergies_nka": true,
+                "primary_problem": "Diabetic Emergency",
+                "problem_code": "83",
+                "procedures": [
+                    {
+                        "time": "10:04",
+                        "procedure": "010",
+                        "crew": "1",
+                        "pulse_rate": "96",
+                        "resp_rate": "18",
+                        "bp": "126/78",
+                        "spo2": "98",
+                        "gcs": "13"
+                    },
+                    {
+                        "time": "10:05",
+                        "procedure": "025",
+                        "crew": "1",
+                        "reading": "2.1 mmol/L"
+                    },
+                    {
+                        "time": "10:09",
+                        "procedure": "530",
+                        "crew": "1",
+                        "dose": "25 g",
+                        "route": "IV"
+                    },
+                    {
+                        "time": "10:22",
+                        "procedure": "025",
+                        "crew": "1",
+                        "reading": "6.4 mmol/L"
+                    },
+                    {
+                        "time": "10:23",
+                        "procedure": "010",
+                        "crew": "1",
+                        "pulse_rate": "84",
+                        "bp": "130/80",
+                        "spo2": "99",
+                        "gcs": "15"
+                    },
+                    {
+                        "time": "10:24",
+                        "procedure": "025",
+                        "crew": "1",
+                        "reading": "6.5 mmol/L"
+                    }
+                ]
+            }
         },
         {
-          "timestamp": "10:05",
-          "bp": null,
-          "hr": null,
-          "spo2": null,
-          "gcs": null,
-          "blood_glucose": "2.1 mmol/L"
+            "encounter_id": "44342a5e-1c3b-41db-b770-786e8afeb5fa",
+            "chief_complaint": "Fall, left hip pain",
+            "onset": "2026-10-16 11:04",
+            "allergies": [],
+            "medications_administered": [],
+            "vitals_stream": [
+                {
+                    "timestamp": "11:12",
+                    "bp": "152/86",
+                    "hr": 88,
+                    "spo2": 96,
+                    "gcs": null,
+                    "blood_glucose": null
+                }
+            ],
+            "protocol_triggers": [],
+            "missing_fields": [
+                "Allergies not recorded (Required before handoff)",
+                "Blood glucose missing for chest pain protocol"
+            ],
+            "paramedic_signed_off": false,
+            "incident_no": 441368,
+            "created_at": "2026-10-16T11:04:00",
+            "updated_at": "2026-10-17T23:54:30+00:00",
+            "acr": {
+                "service_name": "Example EMS",
+                "service_no": "123",
+                "mail_province": "ON",
+                "mail_country": "Canada",
+                "call_date": "2026-10-16",
+                "occurrence_date": "2026-10-16",
+                "occurrence_time": "11:04",
+                "last_name": "Okafor",
+                "first_name": "Lena",
+                "age": "79",
+                "sex": "F",
+                "mail_street_no": "4565",
+                "mail_street_name": "Ariel Blvd",
+                "mail_city": "Toronto",
+                "mail_postal_code": "M0A 0A3",
+                "pickup_code": "U",
+                "chief_complaint": "Fall, left hip pain",
+                "history_hypertension": true,
+                "trauma1_location": "25",
+                "trauma1_type": "38",
+                "trauma1_mechanism": "53",
+                "incident_history": "Slipped in bathroom; unable to bear weight.",
+                "procedures": [
+                    {
+                        "time": "11:12",
+                        "procedure": "010",
+                        "crew": "1",
+                        "pulse_rate": "88",
+                        "resp_rate": "16",
+                        "bp": "152/86",
+                        "spo2": "96"
+                    }
+                ]
+            }
         },
         {
-          "timestamp": "10:22",
-          "bp": null,
-          "hr": null,
-          "spo2": null,
-          "gcs": null,
-          "blood_glucose": "6.4 mmol/L"
+            "encounter_id": "c3fb0e6d-3263-48d6-85c5-3e2f5251fefb",
+            "chief_complaint": "Shortness of breath",
+            "onset": "2026-10-17 12:12",
+            "allergies": [
+                "Penicillin"
+            ],
+            "medications_administered": [
+                {
+                    "drug": "Salbutamol",
+                    "dose": "5 mg",
+                    "route": "NB",
+                    "timestamp": "12:24"
+                }
+            ],
+            "vitals_stream": [
+                {
+                    "timestamp": "12:20",
+                    "bp": "134/82",
+                    "hr": 118,
+                    "spo2": 91,
+                    "gcs": null,
+                    "blood_glucose": null
+                },
+                {
+                    "timestamp": "12:38",
+                    "bp": "130/80",
+                    "hr": 104,
+                    "spo2": 96,
+                    "gcs": null,
+                    "blood_glucose": null
+                },
+                {
+                    "timestamp": "12:40",
+                    "bp": null,
+                    "hr": null,
+                    "spo2": null,
+                    "gcs": null,
+                    "blood_glucose": "6.1 mmol/L"
+                }
+            ],
+            "protocol_triggers": [],
+            "missing_fields": [],
+            "paramedic_signed_off": true,
+            "incident_no": 441369,
+            "created_at": "2026-10-17T12:12:00",
+            "updated_at": "2026-10-17T23:54:30+00:00",
+            "acr": {
+                "service_name": "Example EMS",
+                "service_no": "123",
+                "mail_province": "ON",
+                "mail_country": "Canada",
+                "call_date": "2026-10-17",
+                "occurrence_date": "2026-10-17",
+                "occurrence_time": "12:12",
+                "last_name": "Nguyen",
+                "first_name": "Priya",
+                "age": "34",
+                "sex": "F",
+                "mail_street_no": "Suite 823, 6474",
+                "mail_street_name": "Frank Highway",
+                "mail_city": "Toronto",
+                "mail_postal_code": "M0A 0A2",
+                "pickup_code": "B",
+                "chief_complaint": "Shortness of breath",
+                "history_respiratory": true,
+                "allergies_other": true,
+                "allergies_details": "Penicillin",
+                "primary_problem": "Dyspnea",
+                "problem_code": "21",
+                "procedures": [
+                    {
+                        "time": "12:20",
+                        "procedure": "010",
+                        "crew": "1",
+                        "pulse_rate": "118",
+                        "resp_rate": "28",
+                        "bp": "134/82",
+                        "spo2": "91"
+                    },
+                    {
+                        "time": "12:24",
+                        "procedure": "650",
+                        "crew": "1",
+                        "dose": "5 mg",
+                        "route": "NB"
+                    },
+                    {
+                        "time": "12:38",
+                        "procedure": "010",
+                        "crew": "1",
+                        "pulse_rate": "104",
+                        "resp_rate": "20",
+                        "bp": "130/80",
+                        "spo2": "96"
+                    },
+                    {
+                        "time": "12:40",
+                        "procedure": "025",
+                        "crew": "1",
+                        "reading": "6.1 mmol/L"
+                    }
+                ]
+            }
         },
         {
-          "timestamp": "10:23",
-          "bp": "130/80",
-          "hr": 84,
-          "spo2": 99,
-          "gcs": 15,
-          "blood_glucose": null
-        },
-        {
-          "timestamp": "10:24",
-          "bp": null,
-          "hr": null,
-          "spo2": null,
-          "gcs": null,
-          "blood_glucose": "6.5 mmol/L"
+            "encounter_id": "d526ca7d-3cfe-4944-94c1-18bb05f2c604",
+            "chief_complaint": "Acute chest pain",
+            "onset": "20 minutes ago",
+            "allergies": [],
+            "medications_administered": [
+                {
+                    "drug": "Aspirin",
+                    "dose": "160 mg",
+                    "route": "PO",
+                    "timestamp": "14:42"
+                }
+            ],
+            "vitals_stream": [
+                {
+                    "timestamp": "14:40",
+                    "bp": "140/90",
+                    "hr": 110,
+                    "spo2": 94,
+                    "gcs": 15,
+                    "blood_glucose": null
+                }
+            ],
+            "protocol_triggers": [
+                {
+                    "protocol": "STEMI / Acute Coronary Syndrome",
+                    "status": "Active",
+                    "required_actions": [
+                        "12-Lead ECG transmission",
+                        "Aspirin confirmed",
+                        "Notify ED receiving team"
+                    ]
+                }
+            ],
+            "missing_fields": [
+                "Allergies not recorded (Required before handoff)",
+                "Blood glucose missing for chest pain protocol"
+            ],
+            "paramedic_signed_off": false,
+            "incident_no": 441370,
+            "created_at": "2026-10-17T14:35:00",
+            "updated_at": "2026-10-17T23:54:30+00:00",
+            "acr": {
+                "service_name": "Example EMS",
+                "service_no": "123",
+                "mail_province": "ON",
+                "mail_country": "Canada",
+                "call_date": "2026-10-17",
+                "occurrence_date": "2026-10-17",
+                "occurrence_time": "14:35",
+                "last_name": "Doe",
+                "first_name": "John",
+                "age": "65",
+                "sex": "M",
+                "mail_street_no": "3728",
+                "mail_street_name": "Maple Grove Rd",
+                "mail_city": "Toronto",
+                "mail_postal_code": "M0A 0A1",
+                "pickup_code": "R",
+                "history_cardiac": true,
+                "primary_problem": "Ischemic",
+                "problem_code": "51",
+                "chief_complaint": "Acute chest pain",
+                "procedures": [
+                    {
+                        "time": "14:40",
+                        "procedure": "010",
+                        "pulse_rate": "110",
+                        "bp": "140/90",
+                        "spo2": "94",
+                        "gcs": "15"
+                    },
+                    {
+                        "time": "14:42",
+                        "procedure": "504",
+                        "dose": "160 mg",
+                        "route": "PO"
+                    }
+                ],
+                "incident_history": "Acute chest pain, onset about 20 minutes prior to call."
+            }
         }
-      ],
-      "protocol_triggers": [],
-      "missing_fields": [],
-      "paramedic_signed_off": true,
-      "incident_no": 441367,
-      "created_at": "2026-10-16T09:58:00",
-      "updated_at": "2026-10-17T23:54:30+00:00",
-      "acr": {
-        "service_name": "Example EMS",
-        "service_no": "123",
-        "mail_province": "ON",
-        "mail_country": "Canada",
-        "call_date": "2026-10-16",
-        "occurrence_date": "2026-10-16",
-        "occurrence_time": "09:58",
-        "last_name": "Rivera",
-        "first_name": "Sam",
-        "age": "52",
-        "sex": "M",
-        "mail_street_no": "974",
-        "mail_street_name": "Lerin Parkway",
-        "mail_city": "Toronto",
-        "mail_postal_code": "M0A 0A4",
-        "pickup_code": "R",
-        "chief_complaint": "Altered LOC, diabetic",
-        "history_diabetes": true,
-        "allergies_nka": true,
-        "primary_problem": "Diabetic Emergency",
-        "problem_code": "83",
-        "procedures": [
-          {
-            "time": "10:04",
-            "procedure": "010",
-            "crew": "1",
-            "pulse_rate": "96",
-            "resp_rate": "18",
-            "bp": "126/78",
-            "spo2": "98",
-            "gcs": "13"
-          },
-          {
-            "time": "10:05",
-            "procedure": "025",
-            "crew": "1",
-            "reading": "2.1 mmol/L"
-          },
-          {
-            "time": "10:09",
-            "procedure": "530",
-            "crew": "1",
-            "dose": "25 g",
-            "route": "IV"
-          },
-          {
-            "time": "10:22",
-            "procedure": "025",
-            "crew": "1",
-            "reading": "6.4 mmol/L"
-          },
-          {
-            "time": "10:23",
-            "procedure": "010",
-            "crew": "1",
-            "pulse_rate": "84",
-            "bp": "130/80",
-            "spo2": "99",
-            "gcs": "15"
-          },
-          {
-            "time": "10:24",
-            "procedure": "025",
-            "crew": "1",
-            "reading": "6.5 mmol/L"
-          }
-        ]
-      }
-    },
-    {
-      "encounter_id": "44342a5e-1c3b-41db-b770-786e8afeb5fa",
-      "chief_complaint": "Fall, left hip pain",
-      "onset": "2026-10-16 11:04",
-      "allergies": [],
-      "medications_administered": [],
-      "vitals_stream": [
-        {
-          "timestamp": "11:12",
-          "bp": "152/86",
-          "hr": 88,
-          "spo2": 96,
-          "gcs": null,
-          "blood_glucose": null
-        }
-      ],
-      "protocol_triggers": [],
-      "missing_fields": [
-        "Allergies not recorded (Required before handoff)",
-        "Blood glucose missing for chest pain protocol"
-      ],
-      "paramedic_signed_off": false,
-      "incident_no": 441368,
-      "created_at": "2026-10-16T11:04:00",
-      "updated_at": "2026-10-17T23:54:30+00:00",
-      "acr": {
-        "service_name": "Example EMS",
-        "service_no": "123",
-        "mail_province": "ON",
-        "mail_country": "Canada",
-        "call_date": "2026-10-16",
-        "occurrence_date": "2026-10-16",
-        "occurrence_time": "11:04",
-        "last_name": "Okafor",
-        "first_name": "Lena",
-        "age": "79",
-        "sex": "F",
-        "mail_street_no": "4565",
-        "mail_street_name": "Ariel Blvd",
-        "mail_city": "Toronto",
-        "mail_postal_code": "M0A 0A3",
-        "pickup_code": "U",
-        "chief_complaint": "Fall, left hip pain",
-        "history_hypertension": true,
-        "trauma1_location": "25",
-        "trauma1_type": "38",
-        "trauma1_mechanism": "53",
-        "incident_history": "Slipped in bathroom; unable to bear weight.",
-        "procedures": [
-          {
-            "time": "11:12",
-            "procedure": "010",
-            "crew": "1",
-            "pulse_rate": "88",
-            "resp_rate": "16",
-            "bp": "152/86",
-            "spo2": "96"
-          }
-        ]
-      }
-    },
-    {
-      "encounter_id": "c3fb0e6d-3263-48d6-85c5-3e2f5251fefb",
-      "chief_complaint": "Shortness of breath",
-      "onset": "2026-10-17 12:12",
-      "allergies": [
-        "Penicillin"
-      ],
-      "medications_administered": [
-        {
-          "drug": "Salbutamol",
-          "dose": "5 mg",
-          "route": "NB",
-          "timestamp": "12:24"
-        }
-      ],
-      "vitals_stream": [
-        {
-          "timestamp": "12:20",
-          "bp": "134/82",
-          "hr": 118,
-          "spo2": 91,
-          "gcs": null,
-          "blood_glucose": null
-        },
-        {
-          "timestamp": "12:38",
-          "bp": "130/80",
-          "hr": 104,
-          "spo2": 96,
-          "gcs": null,
-          "blood_glucose": null
-        },
-        {
-          "timestamp": "12:40",
-          "bp": null,
-          "hr": null,
-          "spo2": null,
-          "gcs": null,
-          "blood_glucose": "6.1 mmol/L"
-        }
-      ],
-      "protocol_triggers": [],
-      "missing_fields": [],
-      "paramedic_signed_off": true,
-      "incident_no": 441369,
-      "created_at": "2026-10-17T12:12:00",
-      "updated_at": "2026-10-17T23:54:30+00:00",
-      "acr": {
-        "service_name": "Example EMS",
-        "service_no": "123",
-        "mail_province": "ON",
-        "mail_country": "Canada",
-        "call_date": "2026-10-17",
-        "occurrence_date": "2026-10-17",
-        "occurrence_time": "12:12",
-        "last_name": "Nguyen",
-        "first_name": "Priya",
-        "age": "34",
-        "sex": "F",
-        "mail_street_no": "Suite 823, 6474",
-        "mail_street_name": "Frank Highway",
-        "mail_city": "Toronto",
-        "mail_postal_code": "M0A 0A2",
-        "pickup_code": "B",
-        "chief_complaint": "Shortness of breath",
-        "history_respiratory": true,
-        "allergies_other": true,
-        "allergies_details": "Penicillin",
-        "primary_problem": "Dyspnea",
-        "problem_code": "21",
-        "procedures": [
-          {
-            "time": "12:20",
-            "procedure": "010",
-            "crew": "1",
-            "pulse_rate": "118",
-            "resp_rate": "28",
-            "bp": "134/82",
-            "spo2": "91"
-          },
-          {
-            "time": "12:24",
-            "procedure": "650",
-            "crew": "1",
-            "dose": "5 mg",
-            "route": "NB"
-          },
-          {
-            "time": "12:38",
-            "procedure": "010",
-            "crew": "1",
-            "pulse_rate": "104",
-            "resp_rate": "20",
-            "bp": "130/80",
-            "spo2": "96"
-          },
-          {
-            "time": "12:40",
-            "procedure": "025",
-            "crew": "1",
-            "reading": "6.1 mmol/L"
-          }
-        ]
-      }
-    },
-    {
-      "encounter_id": "d526ca7d-3cfe-4944-94c1-18bb05f2c604",
-      "chief_complaint": "Acute chest pain",
-      "onset": "20 minutes ago",
-      "allergies": [],
-      "medications_administered": [
-        {
-          "drug": "Aspirin",
-          "dose": "160 mg",
-          "route": "PO",
-          "timestamp": "14:42"
-        }
-      ],
-      "vitals_stream": [
-        {
-          "timestamp": "14:40",
-          "bp": "140/90",
-          "hr": 110,
-          "spo2": 94,
-          "gcs": 15,
-          "blood_glucose": null
-        }
-      ],
-      "protocol_triggers": [
-        {
-          "protocol": "STEMI / Acute Coronary Syndrome",
-          "status": "Active",
-          "required_actions": [
-            "12-Lead ECG transmission",
-            "Aspirin confirmed",
-            "Notify ED receiving team"
-          ]
-        }
-      ],
-      "missing_fields": [
-        "Allergies not recorded (Required before handoff)",
-        "Blood glucose missing for chest pain protocol"
-      ],
-      "paramedic_signed_off": false,
-      "incident_no": 441370,
-      "created_at": "2026-10-17T14:35:00",
-      "updated_at": "2026-10-17T23:54:30+00:00",
-      "acr": {
-        "service_name": "Example EMS",
-        "service_no": "123",
-        "mail_province": "ON",
-        "mail_country": "Canada",
-        "call_date": "2026-10-17",
-        "occurrence_date": "2026-10-17",
-        "occurrence_time": "14:35",
-        "last_name": "Doe",
-        "first_name": "John",
-        "age": "65",
-        "sex": "M",
-        "mail_street_no": "3728",
-        "mail_street_name": "Maple Grove Rd",
-        "mail_city": "Toronto",
-        "mail_postal_code": "M0A 0A1",
-        "pickup_code": "R",
-        "history_cardiac": true,
-        "primary_problem": "Ischemic",
-        "problem_code": "51",
-        "chief_complaint": "Acute chest pain",
-        "procedures": [
-          {
-            "time": "14:40",
-            "procedure": "010",
-            "pulse_rate": "110",
-            "bp": "140/90",
-            "spo2": "94",
-            "gcs": "15"
-          },
-          {
-            "time": "14:42",
-            "procedure": "504",
-            "dose": "160 mg",
-            "route": "PO"
-          }
-        ],
-        "incident_history": "Acute chest pain, onset about 20 minutes prior to call."
-      }
+    ],
+    "99d2e3a6-a141-4f3a-8385-ec89a4dbadb5": {
+        "encounter_id": "99d2e3a6-a141-4f3a-8385-ec89a4dbadb5",
+        "patient_age": null,
+        "patient_gender": null,
+        "allergies": [],
+        "timeline": [],
+        "active_protocols": [],
+        "missing_fields": [],
+        "paramedic_signed_off": false
     }
-  ]
 }

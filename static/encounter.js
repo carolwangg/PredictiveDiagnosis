@@ -58,6 +58,8 @@
     meta.missing_fields = r.missing_fields; meta.protocol_triggers = r.protocol_triggers;
     $('inc-no').textContent = r.incident_no;
     document.title = 'Incident ' + r.incident_no + ' – Ambulance Call Report';
+    $('btn-record').disabled = !!r.signed;
+    $('btn-record').title = r.signed ? 'Reopen this report before recording an update' : 'Record an update for this incident';
     pill.textContent = r.signed ? 'Posted' : 'Unposted';
     pill.dataset.signed = r.signed ? 'true' : 'false';
     signBtn.textContent = r.signed ? 'Reopen' : 'Sign & transmit';
@@ -97,6 +99,23 @@
 
   saveBtn.addEventListener('click', function () { save().catch(function () {}); });
   signBtn.addEventListener('click', toggleSign);
+
+  ACRAudio.attach($('btn-record'), {
+    isDisabled: function () { return !!meta.signed; },
+    url: function () { return meta.api + '/' + encodeURIComponent(meta.id) + '/audio'; },
+    beforeStart: function () {
+      if (meta.signed) return Promise.reject(new Error('Reopen this report before recording an update.'));
+      return dirty || !meta.id ? save() : Promise.resolve();
+    },
+    onResult: function (result) {
+      ACR.clear();
+      ACR.populate(result.form || {});
+      applyResult(result);
+      dirty = false;
+      setState('Voice update saved');
+    },
+    onError: function (error) { setState('Voice update failed – ' + error.message, 'err'); }
+  });
 
   document.addEventListener('keydown', function (e) {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); save().catch(function () {}); }
