@@ -1,42 +1,48 @@
-"""Flask backend for the editable Ambulance Call Report form.
+"""Flask backend for the Ambulance Call Report app.
 
-Run:   pip install flask && python app.py        ->  http://127.0.0.1:5000/
+Run:   pip install flask pydantic && python app.py        ->  http://127.0.0.1:5000/
 
-Ways to fill the form from the server
-  1. Server-side prefill: render_template(..., prefill={...}) (see /report/<id> and /demo).
-  2. From the browser:    ACR.load('/api/reports/<id>')  or  ACR.populate({...}).
-  3. One field at a time: ACR.set('last_name', 'Doe').
+Pages
+  /                     home: every call report in ems_encounters.json (add / open-to-update / remove)
+  /encounters/new       blank form (saved to ems_encounters.json on first Save)
+  /encounters/<id>      the form, prefilled from that encounter
+
+JSON API  (all data lives in ems_encounters.json, see encounter_store.py)
+  GET    /api/encounters                 list summaries (home page)
+  POST   /api/encounters                 create from a flat form dict
+  GET    /api/encounters/<id>            full encounter + merged form fields
+  PUT    /api/encounters/<id>            replace the saved form; re-runs the scribe rule engine
+  DELETE /api/encounters/<id>            remove
+  POST   /api/encounters/<id>/sign       {"signed": true|false}  -> paramedic_signed_off
 """
-import json
 import re
 from pathlib import Path
 
 from flask import Flask, abort, jsonify, render_template, request
+from werkzeug.exceptions import HTTPException
 
-from reference_codes import APGAR, GCS, PAIN_LABELS, PEDIATRIC_VITALS, REFERENCE
+from encounter_store import EncounterStore, detail, merged_form, summarize
 
 BASE = Path(__file__).resolve().parent
-DATA_DIR = BASE / "data"
-DATA_DIR.mkdir(exist_ok=True)
+DATA_FILE = BASE / "ems_encounters.json"
+DEFAULT_ROWS = 12
 
 app = Flask(__name__)
+app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024
 app.jinja_env.trim_blocks = True
 app.jinja_env.lstrip_blocks = True
 
+store = EncounterStore(DATA_FILE)
 ID_RE = re.compile(r"[A-Za-z0-9_-]{1,64}")
-DEFAULT_ROWS = 12
 
 
-def render_form(prefill=None, inline=False):
+# ------------------------------------------------------------------ helpers
+def render_form(prefill=None, inline=False, encounter=None):
     ctx = dict(
         prefill=prefill or {},
         proc_rows=max(1, min(request.args.get("rows", DEFAULT_ROWS, type=int), 60)),
-        reference=REFERENCE,
-        gcs=GCS,
-        apgar=APGAR,
-        pediatric_vitals=PEDIATRIC_VITALS,
-        pain_labels=PAIN_LABELS,
         inline=inline,
+        encounter=encounter,
     )
     if inline:
         ctx["css"] = (BASE / "static" / "acr.css").read_text(encoding="utf-8")
@@ -44,21 +50,35 @@ def render_form(prefill=None, inline=False):
     return render_template("acr.html", **ctx)
 
 
-def report_path(rid):
-    if not ID_RE.fullmatch(rid):
-        abort(400, "invalid report id")
-    return DATA_DIR / f"{rid}.json"
+def encounter_ctx(enc=None):
+    """The small dict encounter.js + the toolbar need (None enc = unsaved new report)."""
+    return {
+        "id": enc["encounter_id"] if enc else None,
+        "incident_no": enc["incident_no"] if enc else None,
+        "signed": bool(enc and enc.get("paramedic_signed_off")),
+        "missing_fields": enc.get("missing_fields", []) if enc else [],
+        "protocol_triggers": enc.get("protocol_triggers", []) if enc else [],
+        "api": "/api/encounters",
+        "home": "/",
+        "page": "/encounters",
+    }
 
 
-def read_report(rid):
-    path = report_path(rid)
-    if not path.exists():
-        abort(404)
-    return json.loads(path.read_text(encoding="utf-8"))
+def valid_id(eid):
+    if not ID_RE.fullmatch(eid):
+        abort(400, "invalid encounter id")
+    return eid
+
+
+def get_or_404(eid):
+    enc = store.get(valid_id(eid))
+    if enc is None:
+        abort(404, "encounter not found")
+    return enc
 
 
 def clean_payload(payload):
-    """Accept a flat {field: value} dict; only str/bool/number/None values (plus 'procedures')."""
+    """Flat {field: value} dict; only str/bool/number/None values (plus 'procedures')."""
     if not isinstance(payload, dict):
         abort(400, "expected a JSON object")
     out = {}
@@ -76,59 +96,70 @@ def clean_payload(payload):
     return out
 
 
-# --------------------------------------------------------------------- pages
+@app.errorhandler(HTTPException)
+def json_errors(err):
+    if request.path.startswith("/api/"):
+        return jsonify(error=err.description), err.code
+    return err
+
+
+# -------------------------------------------------------------------- pages
 @app.get("/")
-def blank_form():
-    return render_form()
+def home():
+    return render_template("home.html")
 
 
-@app.get("/report/<rid>")
-def existing_report(rid):
-    return render_form(prefill=read_report(rid))
+@app.get("/encounters/new")
+def new_report():
+    return render_form(encounter=encounter_ctx())
 
 
-@app.get("/demo")
-def demo():
-    """Example of the server populating the form automatically (fictional data)."""
-    sample = {
-        "service_name": "Example EMS", "service_no": "123", "cacc_call_no": "2026-000123",
-        "call_date": "2026-10-17",
-        "last_name": "Doe", "first_name": "Jane", "age": "47", "sex": "F", "weight_kg": "68",
-        "dob": "1979-03-02",
-        "mail_street_no": "10", "mail_street_name": "Sample St", "mail_city": "Toronto",
-        "mail_province": "ON", "mail_postal_code": "A1A 1A1", "mail_country": "Canada",
-        "pickup_same_as_mailing": True, "pickup_code": "R",
-        "occurrence_date": "2026-10-17", "occurrence_time": "14:35",
-        "chief_complaint": "Chest pain", "history_cardiac": True, "history_hypertension": True,
-        "allergies_nka": True, "trachea_shifted": "midline", "jvd": "not_elevated",
-        "ev_call_received": "14:37:10", "ev_arrive_scene": "14:46:02",
-        "procedures": [
-            {"time": "14:48", "procedure": "010", "crew": "1", "pulse_rate": "92",
-             "resp_rate": "18", "bp": "148/90", "spo2": "97"},
-            {"time": "14:55", "procedure": "615", "crew": "1", "dose": "0.4 mg", "route": "SL"},
-        ],
-    }
-    return render_form(prefill=sample)
+@app.get("/encounters/<eid>")
+def open_report(eid):
+    enc = get_or_404(eid)
+    return render_form(prefill=merged_form(enc), encounter=encounter_ctx(enc))
 
 
-# ----------------------------------------------------------------------- API
-@app.post("/api/reports")
-def create_report():
-    import uuid
-    rid = uuid.uuid4().hex[:12]
-    report_path(rid).write_text(json.dumps(clean_payload(request.get_json(force=True))), encoding="utf-8")
-    return jsonify(id=rid), 201
+# ---------------------------------------------------------------------- API
+@app.get("/api/encounters")
+def api_list():
+    return jsonify(encounters=[summarize(e) for e in store.list()])
 
 
-@app.get("/api/reports/<rid>")
-def get_report(rid):
-    return jsonify(read_report(rid))
+@app.post("/api/encounters")
+def api_create():
+    enc = store.create(clean_payload(request.get_json(force=True)))
+    return jsonify(detail(enc)), 201
 
 
-@app.put("/api/reports/<rid>")
-def put_report(rid):
-    report_path(rid).write_text(json.dumps(clean_payload(request.get_json(force=True))), encoding="utf-8")
-    return jsonify(id=rid, saved=True)
+@app.get("/api/encounters/<eid>")
+def api_get(eid):
+    enc = get_or_404(eid)
+    return jsonify({**enc, "form": merged_form(enc)})
+
+
+@app.put("/api/encounters/<eid>")
+def api_update(eid):
+    enc = store.update(valid_id(eid), clean_payload(request.get_json(force=True)))
+    if enc is None:
+        abort(404, "encounter not found")
+    return jsonify(detail(enc))
+
+
+@app.delete("/api/encounters/<eid>")
+def api_delete(eid):
+    if not store.delete(valid_id(eid)):
+        abort(404, "encounter not found")
+    return jsonify(deleted=True)
+
+
+@app.post("/api/encounters/<eid>/sign")
+def api_sign(eid):
+    body = request.get_json(silent=True) or {}
+    enc = store.set_signed(valid_id(eid), body.get("signed", True))
+    if enc is None:
+        abort(404, "encounter not found")
+    return jsonify(detail(enc))
 
 
 if __name__ == "__main__":

@@ -69,23 +69,34 @@
 
 {% macro pc(i, col) -%}<td><input type="text" data-field="proc_{{ i }}_{{ col }}" autocomplete="off" spellcheck="false"></td>{%- endmacro %}
 
-{% macro codeset(title, lines) -%}
-<section class="codeset"><h4>{{ title }}</h4>
-{%- for ln in lines %}
-  {%- if ln.startswith('#') %}<h5>{{ ln[1:] }}</h5>
-  {%- else %}{% set c, l = ln.split('|', 1) %}<div class="pair"><b>{{ c }}</b><span>{{ l }}</span></div>{% endif %}
-{%- endfor %}</section>
-{%- endmacro %}
-
 <!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Ambulance Call Report</title>
+<title>{% if encounter %}Incident {{ encounter.incident_no or 'New' }} – {% endif %}Ambulance Call Report</title>
 {% if inline %}<style>{{ css|safe }}</style>{% else %}<link rel="stylesheet" href="{{ url_for('static', filename='acr.css') }}">{% endif %}
+{% if encounter %}<link rel="stylesheet" href="{{ url_for('static', filename='encounter.css') }}">{% endif %}
 </head>
 <body>
+{% if encounter %}
+<div class="appbar noprint" id="appbar">
+  <a class="back" href="{{ url_for('home') }}" title="Back to all call reports">
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+    <span>All reports</span>
+  </a>
+  <div class="who">
+    <span class="inc">Incident <b id="inc-no">{{ encounter.incident_no or 'New' }}</b></span>
+    <span class="pill" id="status-pill" data-signed="{{ 'true' if encounter.signed else 'false' }}">{{ 'Posted' if encounter.signed else 'Unposted' }}</span>
+  </div>
+  <div class="spacer"></div>
+  <span class="save-state" id="save-state" aria-live="polite">{{ 'All changes saved' if encounter.id else 'Not saved yet' }}</span>
+  <button type="button" class="btn" id="btn-sign">{{ 'Reopen' if encounter.signed else 'Sign & transmit' }}</button>
+  <button type="button" class="btn primary" id="btn-save">Save</button>
+</div>
+<div class="alerts noprint" id="alerts" hidden></div>
+<script type="application/json" id="enc-data">{{ encounter | tojson }}</script>
+{% endif %}
 
 {#- ======================= PAGE 1 – clinical ======================= -#}
 <section class="sheet" id="page-clinical">
@@ -99,7 +110,7 @@
   {{ cell('Chief Complaint', 'chief_complaint', 6) }}
 
   {{ cell('MOHLTC DNR Confirmation Number', 'dnr_confirmation_no', 4) }}
-  <div class="cell s8"><span class="lbl">Trauma Problem Site/Type</span><div class="note" style="margin:6px 0 0">Enter the Site/Type codes (see reference pages).</div></div>
+  <div class="cell s8"><span class="lbl">Trauma Problem Site/Type</span><div class="note" style="margin:6px 0 0">Enter the Site/Type codes.</div></div>
   {% for i in (1, 2, 3) %}
     {{ cell('Location (' ~ i ~ ')', 'trauma' ~ i ~ '_location', 4) }}
     {{ cell('Type', 'trauma' ~ i ~ '_type', 4) }}
@@ -381,124 +392,8 @@
 <div class="footer"><span>1881-45 (2017/01) 7530-4714</span><span>© Queen’s Printer for Ontario, 2017</span></div>
 </section>
 
-{#- ======================= PAGE 4 – code tables ======================= -#}
-<section class="sheet" id="page-codes">
-<header class="top">
-  <div class="org">1881-45 (2017/01)<br>7530-4714</div>
-  <h1 style="font-size:20px">Ambulance Call Report – Codes</h1>
-  <div class="conf"></div>
-</header>
-<div class="codes">
-{% for title, lines in reference %}{{ codeset(title, lines) }}{% endfor %}
-</div>
-<div class="footer"><span>1881-45 (2017/01) 7530-4714</span><span>© Queen’s Printer for Ontario, 2017</span></div>
-</section>
-
-{#- ======================= PAGE 5 – reference + refusal ======================= -#}
-<section class="sheet" id="page-reference">
-<header class="top">
-  <div class="org">1881-45 (2017/01)<br>7530-4714</div>
-  <h1 style="font-size:20px">Reference Information</h1>
-  <div class="conf"></div>
-</header>
-
-<h3 class="bar" style="margin-top:0">Skin</h3>
-<table class="ref">
-  <tr><th>Skin Colour</th><td>Flushed · Pale · Cyanosis · Jaundice · Unremarkable</td></tr>
-  <tr><th>Skin Condition</th><td>Dry · Clammy · Diaphoretic · Unremarkable</td></tr>
-</table>
-
-<div class="refgrid">
-{% for scale, cols in gcs.items() %}
-  <div>
-  <h3 class="bar">{{ scale }}</h3>
-  <table class="ref">
-    <thead><tr>{% for h in cols %}<th>{{ h }}</th>{% endfor %}</tr></thead>
-    <tbody>
-    {% set n = cols.values() | map('length') | max %}
-    {% for r in range(n) %}<tr>{% for h, items in cols.items() %}<td>{% if r < items | length %}{% set c, l = items[r].split('|', 1) %}<b>{{ c }}</b> {{ l }}{% endif %}</td>{% endfor %}</tr>{% endfor %}
-    </tbody>
-  </table>
-  </div>
-{% endfor %}
-</div>
-
-<div class="refgrid">
-  <div>
-    <h3 class="bar">Normal Pediatric Vital Signs</h3>
-    <table class="ref">
-      <thead><tr><th>Age</th><th>Respiratory Rate</th><th>Heart Rate</th></tr></thead>
-      <tbody>{% for age, rr, hr in pediatric_vitals %}<tr><td>{{ age }}</td><td>{{ rr }}</td><td>{{ hr }}</td></tr>{% endfor %}</tbody>
-    </table>
-    <p class="note">Systolic Blood Pressure (for children 1-10 yrs) &gt; 90 + (2x age in years)<br>Weight (kg) = (age x 2) + 10</p>
-    <h3 class="bar">Definition of Hypoglycemia</h3>
-    <table class="ref">
-      <tr><td>&gt;2 years</td><td>Glucometry &lt;4.0 mmol/L</td></tr>
-      <tr><td>&lt;2 years</td><td>Glucometry &lt;3.0 mmol/L</td></tr>
-    </table>
-  </div>
-  <div>
-    <h3 class="bar">APGAR Score</h3>
-    <table class="ref">
-      <thead><tr><th>Parameter</th><th>0</th><th>1</th><th>2</th></tr></thead>
-      <tbody>{% for p, a, b, c in apgar %}<tr><th>{{ p }}</th><td>{{ a }}</td><td>{{ b }}</td><td>{{ c }}</td></tr>{% endfor %}</tbody>
-    </table>
-    <p class="note">APGAR performed at 1 &amp; 5 minutes after delivery. Don’t wait for APGAR to make decision on resuscitation.</p>
-  </div>
-</div>
-
-<h3 class="bar">0 – 10 Numeric Pain Intensity Scale</h3>
-<div class="pain">
-  {% for n in range(0, 11) %}<div><b>{{ n }}</b>{% if n in pain_labels %}<br>{{ pain_labels[n] }}{% else %}<br>&nbsp;{% endif %}</div>{% endfor %}
-</div>
-
-<h2 class="bar">Aid to Capacity Evaluation <span style="text-transform:none;font-weight:normal">(Record Details in ‘Remarks’ Section)</span></h2>
-<div class="grid">
-  {% call grp('Responsible adult on scene', 12) %}{{ rad('Yes', 'cap_responsible_adult', 'yes') }}{{ rad('No', 'cap_responsible_adult', 'no') }}{% endcall %}
-  {% call grp('Patient verbalizes/communicates understanding of clinical situation? (e.g., what is wrong with you?)', 12) %}
-    {{ rad('Yes', 'cap_understanding', 'yes') }}{{ rad('No – Requires consideration of capacity', 'cap_understanding', 'no') }}
-  {% endcall %}
-  {{ cell('Indicate to whom this assessment refers if not the patient [e.g., parent, or substitute decision maker (SDM)]', 'cap_assessment_subject', 12) }}
-  {% call grp('Patient verbalizes/communicates appreciation of applicable risks? (e.g., what could happen if I don’t help you?)', 12) %}
-    {{ rad('Yes', 'cap_appreciation', 'yes') }}{{ rad('No – Requires consideration of capacity', 'cap_appreciation', 'no') }}
-  {% endcall %}
-  {% call grp('Patient verbalizes/communicates ability to make alternative plan for care? (e.g., what will you do once I leave?)', 12) %}
-    {{ rad('Yes', 'cap_alternative_plan', 'yes') }}{{ rad('No – Requires consideration of capacity', 'cap_alternative_plan', 'no') }}
-  {% endcall %}
-</div>
-
-<h2 class="bar">Refusal of Service / Refus de service</h2>
-<div class="bilingual">
-  <p>I have been advised that treatment and/or transportation is available immediately. I refuse such treatment and/or transportation to hospital having been informed of the risks involved. I assume full responsibility arising out of such refusal.</p>
-  <p lang="fr">On m’a avisé que je pouvais être traité ou transporté à l’hôpital immédiatement. Je refuse d’être traité ou transporté à l’hôpital. J’ai été informé des risques auxquels cette décision m’expose. J’assume l’entière responsabilité de ce refus.</p>
-</div>
-<div class="grid">
-  {{ area('Patient/Substitute decision maker (SDM) – print name and address / Patient/mandataire spécial (MS) – Nom et adresse en lettres moulées', 'refusal_patient_name_address', 12, 2) }}
-  {{ cell('Signature of Patient or SDM / Signature du patient ou du MS', 'refusal_patient_signature', 5) }}
-  {{ cell('If SDM, relationship to Patient / Si MS, relation avec le patient', 'refusal_relationship', 3) }}
-  {{ date('Date', 'refusal_patient_date', 2) }}{{ time('Time', 'refusal_patient_time', 2) }}
-</div>
-<div class="bilingual">
-  <p>I have advised this patient or SDM of the risks to the patient’s health that are involved.<br>
-  <span lang="fr">J’ai avisé le patient ou le MS des risques de cette décision pour la santé du patient.</span></p>
-</div>
-<div class="grid">
-  {{ cell('Attending Paramedic Signature', 'refusal_paramedic_signature', 8) }}
-  {{ date('Date', 'refusal_paramedic_date', 2) }}{{ time('Time', 'refusal_paramedic_time', 2) }}
-</div>
-<div class="bilingual">
-  <p>I was witness to the above-mentioned refusal and that the person has been informed of the risks involved.<br>
-  <span lang="fr">J’ai été témoin du refus susmentionné et du fait que la personne a été informée des risques de ce refus.</span></p>
-</div>
-<div class="grid">
-  {{ cell('Non Paramedic Witness Name / Nom du témoin autre qu’un ambulancier paramédical', 'refusal_witness_name', 8) }}
-  {{ date('Date', 'refusal_witness_date', 2) }}{{ time('Time', 'refusal_witness_time', 2) }}
-  {{ cell('Witness/Paramedic 2 Signature / Signature du témoin/d’un 2e ambulancier paramédical', 'refusal_witness_signature', 12) }}
-</div>
-<div class="footer"><span>1881-45 (2017/01) 7530-4714</span><span>© Queen’s Printer for Ontario, 2017</span></div>
-</section>
-
 {% if inline %}<script>{{ js|safe }}</script>{% else %}<script src="{{ url_for('static', filename='acr.js') }}"></script>{% endif %}
+{% if encounter %}<script src="{{ url_for('static', filename='encounter.js') }}"></script>{% endif %}
 {% if prefill %}<script>window.ACR_PREFILL = {{ prefill | tojson }}; if (window.ACR && document.readyState !== 'loading') ACR.populate(window.ACR_PREFILL);</script>{% endif %}
 </body>
 </html>

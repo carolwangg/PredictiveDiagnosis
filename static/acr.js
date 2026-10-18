@@ -23,6 +23,7 @@
  *   ACR.onChange(fn)                 -> fn({name, value, source}) on every edit
  *   ACR.addProcedureRow()            -> new row number
  *   ACR.setProcedures([{time, procedure, ...}, ...])
+ *   ACR.getProcedures()              -> [{time, procedure, ...}, ...]  (non-empty rows only)
  *   ACR.load(url) / ACR.save(url)    -> fetch() helpers (JSON)
  *
  * window.ACR_PREFILL, if defined before DOMContentLoaded, is passed to populate().
@@ -212,6 +213,20 @@
     return n;
   }
 
+  /* rows with at least one filled cell -> [{time, procedure, ...}] (empty cells omitted) */
+  function getProcedures() {
+    var out = [];
+    for (var i = 1; i <= rowCount(); i++) {
+      var row = {}, any = false;
+      PROC_COLUMNS.forEach(function (col) {
+        var v = get('proc_' + i + '_' + col);
+        if (v !== undefined && v !== '' && v !== false) { row[col] = v; any = true; }
+      });
+      if (any) out.push(row);
+    }
+    return out;
+  }
+
   function setProcedures(rows) {
     while (rowCount() < rows.length) addProcedureRow();
     rows.forEach(function (row, i) {
@@ -322,7 +337,7 @@
     version: '1.0',
     has: has, get: get, set: set, populate: populate, collect: collect, clear: clear,
     focus: focus, schema: schema, onChange: onChange, refresh: build,
-    addProcedureRow: addProcedureRow, setProcedures: setProcedures,
+    addProcedureRow: addProcedureRow, setProcedures: setProcedures, getProcedures: getProcedures,
     load: load, save: save
   };
 

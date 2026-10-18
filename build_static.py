@@ -1,8 +1,8 @@
-"""Render the form to one self-contained HTML file (CSS + JS inlined).
+"""Render the (blank) form to one self-contained HTML file (CSS + JS inlined).
 
     python build_static.py [output.html]
 
-The result needs no server; it still exposes the window.ACR API.
+The result needs no server and has no home page / saving; it still exposes the window.ACR API.
 """
 import sys
 from pathlib import Path

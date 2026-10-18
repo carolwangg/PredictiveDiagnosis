@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Call Reports – Ambulance Call Report</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='home.css') }}">
+</head>
+<body>
+
+<header class="top">
+  <div class="top-inner">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 12h18"/></svg>
+      </span>
+      <div><h1>Call Reports</h1><p id="subtitle">Loading…</p></div>
+    </div>
+
+    <a class="new" id="btn-new" href="{{ url_for('new_report') }}">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      New Incident
+    </a>
+
+    <div class="more">
+      <button class="more-btn" id="more-btn" aria-haspopup="true" aria-expanded="false">
+        <span>More</span>
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+      <div class="menu" id="more-menu" hidden>
+        <button type="button" data-act="refresh">Refresh list</button>
+        <a href="/api/encounters" target="_blank" rel="noopener">View raw JSON</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="tools">
+    <label class="search">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+      <input id="q" type="search" placeholder="Search incident #, name, address, complaint…" autocomplete="off">
+    </label>
+    <div class="chips" role="tablist" aria-label="Filter">
+      <button class="chip on" data-filter="all" role="tab">All <i id="n-all">0</i></button>
+      <button class="chip" data-filter="unposted" role="tab">Unposted <i id="n-unposted">0</i></button>
+      <button class="chip" data-filter="posted" role="tab">Posted <i id="n-posted">0</i></button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <ul class="list" id="list" aria-label="Call reports"></ul>
+  <div class="empty" id="empty" hidden>
+    <svg viewBox="0 0 64 64" width="72" height="72" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="12" y="8" width="40" height="48" rx="6"/><path d="M22 22h20M22 31h20M22 40h11"/></svg>
+    <h2 id="empty-title">No call reports yet</h2>
+    <p id="empty-text">Start a new incident to create the first one.</p>
+  </div>
+</main>
+
+<!-- action bar: appears once a report is selected -->
+<div class="actionbar" id="actionbar" hidden>
+  <div class="sel">
+    <span class="sel-label">Selected</span>
+    <b id="sel-title">Incident</b>
+    <span id="sel-sub"></span>
+  </div>
+  <div class="acts">
+    <a class="act add" href="{{ url_for('new_report') }}">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add report</a>
+    <button class="act del" id="act-del" type="button">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>Remove</button>
+    <a class="act open" id="act-open" href="#">Update report
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+    <button class="x" id="act-clear" type="button" aria-label="Clear selection">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </div>
+</div>
+
+<dialog id="confirm">
+  <form method="dialog">
+    <h3>Remove this report?</h3>
+    <p id="confirm-text"></p>
+    <div class="row">
+      <button value="cancel" class="btn">Cancel</button>
+      <button value="ok" class="btn danger" id="confirm-ok">Remove report</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script>window.ACR_HOME = { api: "/api/encounters", page: "/encounters" };</script>
+<script src="{{ url_for('static', filename='home.js') }}"></script>
+</body>
+</html>

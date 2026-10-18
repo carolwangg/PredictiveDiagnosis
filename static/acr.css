@@ -27,7 +27,7 @@ body {
   margin: 16px auto;
   padding: 20px 24px 14px;
   background: var(--paper);
-  box-shadow: 0 1px 6px rgba(0, 0, 0, .25);
+  border: 1px solid #c4c4c4;
 }
 
 /* ---------- page header (logos removed, text kept) ---------- */
@@ -83,7 +83,7 @@ h3.bar { font-size: 12px; margin-top: 14px; }
   font-size: 9.5px;
   line-height: 1.1;
 }
-.cell:focus-within { background: var(--focus-bg); box-shadow: inset 0 0 0 2px var(--focus); }
+.cell:focus-within { background: var(--focus-bg); outline: 2px solid var(--focus); outline-offset: -2px; }
 .cell.flash { animation: flash 1.2s ease-out; }
 @keyframes flash { from { background: var(--flash); } to { background: transparent; } }
 
@@ -128,10 +128,11 @@ table.proc th {
   border-right: 1px solid var(--line); border-bottom: 1px solid var(--line);
 }
 table.proc td { padding: 0 3px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); height: 28px; }
-table.proc td:focus-within { background: var(--focus-bg); box-shadow: inset 0 0 0 2px var(--focus); }
+table.proc td:focus-within { background: var(--focus-bg); outline: 2px solid var(--focus); outline-offset: -2px; }
 table.proc .rownum { width: 24px; text-align: center; color: #777; font-size: 10px; background: #efefef; }
 .tools { margin: 6px 0 0; font-size: 12px; }
-.tools button { font: inherit; padding: 2px 10px; cursor: pointer; }
+.tools button { font: inherit; padding: 2px 10px; cursor: pointer; transition: background-color .12s; }
+.tools button:hover { background: #d6d6d6; }
 
 /* ---------- misc ---------- */
 .copies { margin-top: 8px; font-size: 11px; color: var(--lbl); display: flex; flex-wrap: wrap; gap: 4px 24px; }
@@ -169,7 +170,7 @@ table.ref th { background: #efefef; }
 
 @media print {
   body { background: #fff; }
-  .sheet { width: auto; margin: 0; padding: 0; box-shadow: none; break-after: page; }
-  .cell:focus-within, table.proc td:focus-within { background: none; box-shadow: none; }
+  .sheet { width: auto; margin: 0; padding: 0; border: 0; break-after: page; }
+  .cell:focus-within, table.proc td:focus-within { background: none; outline: none; }
   .tools, .noprint { display: none !important; }
 }

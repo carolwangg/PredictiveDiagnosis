@@ -1,0 +1,113 @@
+/*
+ * Form page <-> ems_encounters.json.
+ * Uses the ACR field API; the server (encounter_store.py) does the persistence.
+ */
+(function () {
+  'use strict';
+  var dataEl = document.getElementById('enc-data');
+  if (!dataEl || !window.ACR) return;
+
+  var meta = JSON.parse(dataEl.textContent);   // {id, incident_no, signed, api, home, page, ...}
+  var dirty = false, busy = false;
+  var $ = function (id) { return document.getElementById(id); };
+  var stateEl = $('save-state'), saveBtn = $('btn-save'), signBtn = $('btn-sign'), pill = $('status-pill');
+
+  function setState(text, cls) { stateEl.textContent = text; stateEl.className = 'save-state ' + (cls || ''); }
+
+  function payload() {
+    var d = ACR.collect({ skipEmpty: true });
+    Object.keys(d).forEach(function (k) { if (/^proc_\d+_/.test(k)) delete d[k]; });  // rows go in "procedures"
+    d.procedures = ACR.getProcedures();
+    return d;
+  }
+
+  function api(method, url, body) {
+    return fetch(url, {
+      method: method,
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: body === undefined ? undefined : JSON.stringify(body)
+    }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) {
+        if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+        return j;
+      });
+    });
+  }
+
+  /* ---------- alerts from the scribe rule engine ---------- */
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+
+  function renderAlerts() {
+    var box = $('alerts'), html = '';
+    var miss = meta.missing_fields || [], prot = meta.protocol_triggers || [];
+    if (miss.length) {
+      html += '<h4>Needs attention</h4><ul>' + miss.map(function (m) { return '<li class="warn">' + esc(m) + '</li>'; }).join('') + '</ul>';
+    }
+    if (prot.length) {
+      html += '<h4>Active protocols</h4><ul>' + prot.map(function (p) {
+        return '<li class="proto"><b>' + esc(p.protocol) + '</b> <small>' + esc(p.status || '') + ' – ' +
+          esc((p.required_actions || []).join(' · ')) + '</small></li>';
+      }).join('') + '</ul>';
+    }
+    box.innerHTML = html;
+    box.hidden = !html;
+  }
+
+  function applyResult(r) {
+    meta.id = r.id; meta.incident_no = r.incident_no; meta.signed = r.signed;
+    meta.missing_fields = r.missing_fields; meta.protocol_triggers = r.protocol_triggers;
+    $('inc-no').textContent = r.incident_no;
+    document.title = 'Incident ' + r.incident_no + ' – Ambulance Call Report';
+    pill.textContent = r.signed ? 'Posted' : 'Unposted';
+    pill.dataset.signed = r.signed ? 'true' : 'false';
+    signBtn.textContent = r.signed ? 'Reopen' : 'Sign & transmit';
+    renderAlerts();
+  }
+
+  /* ---------- save / sign ---------- */
+  function save() {
+    if (busy) return Promise.reject(new Error('busy'));
+    busy = true; saveBtn.disabled = true; setState('Saving…');
+    var creating = !meta.id;
+    return api(creating ? 'POST' : 'PUT', creating ? meta.api : meta.api + '/' + meta.id, payload())
+      .then(function (r) {
+        if (creating) history.replaceState(null, '', meta.page + '/' + r.id);
+        applyResult(r);
+        dirty = false;
+        setState('Saved ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+        return r;
+      })
+      .catch(function (e) { setState('Save failed – ' + e.message, 'err'); throw e; })
+      .then(function (r) { busy = false; saveBtn.disabled = false; return r; },
+            function (e) { busy = false; saveBtn.disabled = false; throw e; });
+  }
+
+  function toggleSign() {
+    var target = !meta.signed;
+    var go = dirty || !meta.id ? save() : Promise.resolve();
+    go.then(function () {
+      if (target && meta.missing_fields.length &&
+          !confirm('This report still has open items:\n\n• ' + meta.missing_fields.join('\n• ') +
+                   '\n\nSign & transmit anyway?')) return null;
+      return api('POST', meta.api + '/' + meta.id + '/sign', { signed: target }).then(function (r) {
+        applyResult(r); setState(target ? 'Signed & transmitted' : 'Reopened for editing');
+      });
+    }).catch(function (e) { if (e.message !== 'busy') setState('Failed – ' + e.message, 'err'); });
+  }
+
+  saveBtn.addEventListener('click', function () { save().catch(function () {}); });
+  signBtn.addEventListener('click', toggleSign);
+
+  document.addEventListener('keydown', function (e) {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); save().catch(function () {}); }
+  });
+  ACR.onChange(function () { if (!dirty) { dirty = true; setState('Unsaved changes', 'dirty'); } });
+  window.addEventListener('beforeunload', function (e) { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
+
+  // intercept the "All reports" link so unsaved edits aren't lost silently
+  document.querySelector('#appbar .back').addEventListener('click', function (e) {
+    if (dirty && !confirm('You have unsaved changes. Leave without saving?')) e.preventDefault();
+  });
+
+  renderAlerts();
+})();
