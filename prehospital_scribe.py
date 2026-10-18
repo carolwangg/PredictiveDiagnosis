@@ -16,7 +16,7 @@ from modules.stt import listen_for_speech, transcribe_audio
 # ==========================================
 
 class VitalSign(BaseModel):
-    timestamp: str = Field(..., description="Time vitals were recorded")
+    timestamp: Optional[str] = Field(None, description="Time vitals were recorded")
     bp: Optional[str] = Field(None, description="Blood Pressure")
     hr: Optional[int] = Field(None, description="Heart Rate in BPM")
     spo2: Optional[int] = Field(None, description="Oxygen Saturation percentage")
@@ -28,7 +28,7 @@ class MedicationAdministered(BaseModel):
     drug: str
     dose: str
     route: str
-    timestamp: str
+    timestamp: Optional[str] = None
 
 
 class ClinicalEvent(BaseModel):
@@ -87,41 +87,38 @@ def save_record_to_master_json(record: PatientRecord) -> str:
 # ==========================================
 
 def extract_data_with_llm(raw_transcript: str) -> dict:
-    """Uses a local LLM (Ollama) to extract structured clinical fields from raw speech text."""
+    """Uses a local LLM (Ollama) to extract structured clinical fields with strict field separation."""
     print("[🤖] Running local LLM extraction...")
 
     prompt = f"""
-    You are a medical data extraction assistant for prehospital EMS documentation. 
+    You are an expert medical data extraction assistant for prehospital EMS documentation. 
     Analyze the following paramedic voice transcript and extract structured clinical fields into strict JSON format.
 
     Transcript: "{raw_transcript}"
 
-    Extract and return ONLY a valid JSON object with the following keys:
-    - "patient_age": integer or null
-    - "patient_gender": string (e.g. "Male", "Female") or null
-    - "allergies": list of strings (or empty list if none)
-    - "noted_complaint": string summary of chief complaint or status update
-    - "new_vitals": list of objects containing any recorded vitals, each with:
-      - "timestamp": string (e.g. "14:40") or null
-      - "bp": string or null
-      - "hr": integer or null
-      - "spo2": integer or null
-      - "gcs": integer or null
-      - "blood_glucose": string or null
-    - "new_medications": list of objects containing any administered medications, each with:
-      - "drug": string
-      - "dose": string
-      - "route": string
-      - "timestamp": string or null
+    Strict Extraction Rules:
+    - "patient_age": extract integer age or null.
+    - "patient_gender": extract string ("Male", "Female") or null.
+    - "allergies": extract list of specific allergies. If the transcript states "no known drug allergies" or "NKDA", include "No Known Allergies".
+    - "noted_complaint": short summary of chief complaint or status update.
+    - "new_vitals": list of objects for any explicitly recorded vitals:
+      - "timestamp": string time (e.g., "1610") or null.
+      - "bp": string blood pressure ONLY (e.g., "120/80"). If blood pressure is NOT mentioned in this specific update, it MUST be null. Do NOT put blood glucose here.
+      - "hr": integer heart rate or null.
+      - "spo2": integer oxygen saturation percentage or null.
+      - "gcs": integer Glasgow Coma Scale (3-15) or null.
+      - "blood_glucose": string blood glucose level with units (e.g., "6.4 mmol/L") or null. If blood glucose is NOT mentioned, it MUST be null.
+    - "new_medications": list of objects for administered medications (drug, dose, route, timestamp) or empty list.
+
+    Return ONLY a valid JSON object matching these keys.
     """
 
     try:
         response = ollama.chat(
-            model='llama3',  # Make sure Ollama is running and llama3 is installed locally
+            model='llama3:latest',
             messages=[{'role': 'user', 'content': prompt}],
-            format='json'  # Forces Ollama to output valid JSON
-        )  # <-- Fixed: closed with parenthesis instead of brace
-
+            format='json'
+        )
         return json.loads(response['message']['content'])
     except Exception as e:
         print(f"[!] LLM Extraction Error: {e}")
@@ -150,8 +147,14 @@ def process_new_audio_event(record: PatientRecord, raw_transcript: str) -> Patie
         if allergy not in record.allergies:
             record.allergies.append(allergy)
 
-    # Build new vitals & medication sub-objects
-    vitals_list = [VitalSign(**v) for v in extracted_data.get("new_vitals", [])]
+    # Build new vitals sub-objects with fallback timestamp
+    vitals_list = []
+    for v in extracted_data.get("new_vitals", []):
+        if not v.get("timestamp"):
+            v["timestamp"] = current_time
+        vitals_list.append(VitalSign(**v))
+
+    # Build new medications sub-objects
     meds_list = [MedicationAdministered(**m) for m in extracted_data.get("new_medications", [])]
 
     # Create chronological clinical event
@@ -170,7 +173,6 @@ def process_new_audio_event(record: PatientRecord, raw_transcript: str) -> Patie
     triggers = []
     for event in record.timeline:
         c = (event.noted_complaint or "").lower()
-        # Also check transcripts across timeline for safety triggers
         t_text = event.raw_transcript.lower()
 
         if "stops breathing" in c or "arrest" in c or "unresponsive" in t_text or "stopped breathing" in t_text:
